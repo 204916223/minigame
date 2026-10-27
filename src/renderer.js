@@ -68,6 +68,7 @@
     bar(10, top, C.width - 20, 15, G.player.hp / G.player.maxhp, '#ff5d6c', 'HP ' + Math.ceil(G.player.hp) + ' / ' + G.player.maxhp);
     bar(10, top + 18, C.width - 20, 9, G.player.xp / G.player.xpv, '#7cff6b', '');
     text('Lv.' + G.player.lvl, 10, top + 43, 12, '#ffd166', 'left', 'middle', 'bold');
+    if (G.player.damageMul > 1) text('★' + G.player.starBonus + ' 伤害 +' + Math.round((G.player.damageMul - 1) * 100) + '%', C.width - 55, top + 59, 10, '#ffd166', 'right', 'middle', 'bold');
     var waveText = GP.isBossActive() ? '第 ' + (G.waveIndex + 1) + '/' + C.waveCount + ' 波  首领战' : '第 ' + (G.waveIndex + 1) + '/' + C.waveCount + ' 波  击杀 ' + G.waveKills + '/' + w.kills;
     text(waveText, 58, top + 43, 12, '#cdd6ee', 'left', 'middle', 'bold');
     text(formatTime(G.time), C.width - 55, top + 43, 12, '#8b95b3', 'right', 'middle');
@@ -82,13 +83,13 @@
       c.strokeStyle = state && state.owned ? w.color : '#2c3a60'; c.stroke();
       if (!state || !state.owned) { text('+', x + size / 2, y + size / 2 - 2, 20, '#3d4a70', 'center', 'middle', 'bold');
         text(w.name.slice(0, 2), x + size / 2, y + size + 10, 9, '#5b6787', 'center', 'middle'); return; }
-      var d = state.derived;
+      var d = state.derived, shownDmg = d.dmg * (G.player.damageMul || 1);
       text(w.icon, x + size / 2, y + 18, 20, w.color, 'center', 'middle', 'bold');
       var fraction = Math.max(0, Math.min(1, state.cd / d.cd));
       if (fraction > 0) { c.save(); rounded(x, y, size, size, 11); c.clip(); c.beginPath(); c.moveTo(x + size / 2, y + size / 2);
         c.arc(x + size / 2, y + size / 2, size, -Math.PI / 2, -Math.PI / 2 + fraction * Math.PI * 2); c.closePath(); c.fillStyle = 'rgba(4,8,16,.72)'; c.fill(); c.restore(); }
       if (state.cd > 1) text((state.cd / 1000).toFixed(1), x + size / 2, y + 19, 12, '#fff', 'center', 'middle', 'bold');
-      text('×' + d.count + ' ' + (d.dmg < 10 ? d.dmg.toFixed(1) : Math.round(d.dmg)), x + size / 2, y + size - 9, 9, '#cdd6ee', 'center', 'middle', 'bold');
+      text('×' + d.count + ' ' + (shownDmg < 10 ? shownDmg.toFixed(1) : Math.round(shownDmg)), x + size / 2, y + size - 9, 9, '#cdd6ee', 'center', 'middle', 'bold');
       var lv = weaponLevel(w.id); if (lv) text('Lv' + lv, x + size - 4, y + 4, 9, '#ffd166', 'right', 'top', 'bold');
       text(w.name.slice(0, 2), x + size / 2, y + size + 10, 9, '#8b95b3', 'center', 'middle');
     });
@@ -111,6 +112,9 @@
       text((i + 1) + '. ' + level.name, rect.x + 18, y + 24, 16, unlocked ? '#fff' : '#596176', 'left', 'middle', 'bold');
       if (unlocked) drawStars(rect.x + 275, y + 35, G.progress.stars[i] || 0, !!G.progress.flawless[i], 22); else text('🔒', rect.x + 330, y + 33, 20, '#596176', 'center', 'middle');
     });
+    var starTotal = 0; (G.progress.stars || []).forEach(function (n) { starTotal += n || 0; });
+    text('星辉：第 2 关起每颗星 +15% 伤害' + (starTotal ? '（当前 ★' + starTotal + ' → +' + (starTotal * 15) + '%）' : ''),
+      C.width / 2, 592, 11, '#8b95b3', 'center', 'middle');
   }
   var CAT_COLOR = { 强度: '#7cff6b', 数量: '#8fe9ff', 机制: '#ffd43b', 解锁: '#ff922b' };
   function weaponIcon(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.icon : '✦'; }

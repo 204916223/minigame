@@ -18,8 +18,9 @@
     }
     return waves;
   }
-  function buildLevel(name, hpScale, speedScale, tierPools, tierIntervals) {
-    return { name: name, hpScale: hpScale, speedScale: speedScale, waves: buildWaves(tierPools, tierIntervals) };
+  /* hpMul：只放大怪物血量，不放大接触伤害；配合星辉把每关平均通过率压到 ~75% */
+  function buildLevel(name, hpScale, speedScale, hpMul, tierPools, tierIntervals) {
+    return { name: name, hpScale: hpScale, speedScale: speedScale, hpMul: hpMul, waves: buildWaves(tierPools, tierIntervals) };
   }
 
   PM.Config = {
@@ -40,6 +41,9 @@
     /* 交战线：敌人必须先走进画面（y >= enterY）才会被锁定/溅射/传导/灼烧，
        否则武器会在屏幕外就把怪杀掉，玩家看不到敌人出场 */
     combat: { enterY: 8 },
+    /* 星辉：从第二关起，每颗已获得的星给全队伤害 +15%（加法叠加），
+       用来奖励三星通关并托住后期难度 */
+    starBonus: { perStar: 0.15, fromLevel: 1 },
 
     palette: {
       '.': null, '0': '#1a1f2e', '1': '#38bdf8', '2': '#0ea5e9', '3': '#e2e8f0', '4': '#f472b6',
@@ -96,20 +100,20 @@
        count、pierce、child、burn、chain、toxic 走加法 */
     cards: [
       { id: 'b_split', weapon: 'basic', cat: '数量', name: '齐射分裂', color: '#8fe9ff', max: 6,
-        gain: { count: 1 }, tax: { dmg: 0.90 },
-        desc: function (lv) { return '弹道 +1（当前 ' + (1 + lv) + ' 发）'; }, cost: '每发伤害 -10%' },
+        gain: { count: 1 }, tax: { dmg: 0.70 },
+        desc: function (lv) { return '弹道 +1（当前 ' + (1 + lv) + ' 发）'; }, cost: '每发伤害 -30%' },
       { id: 'b_power', weapon: 'basic', cat: '强度', name: '高爆弹药', color: '#ffd166', max: 5,
-        gain: { dmg: 1.30 }, desc: function () { return '普攻伤害 +30%（乘法叠加）'; } },
+        gain: { dmg: 1.40 }, desc: function () { return '普攻伤害 +40%（乘法叠加）'; } },
       { id: 'b_rapid', weapon: 'basic', cat: '强度', name: '快速装填', color: '#a3bffa', max: 4,
         gain: { cd: 0.86 }, desc: function (lv) { return '冷却 -14%（当前 ' + (2 * Math.pow(0.86, lv)).toFixed(2) + 's）'; } },
 
       { id: 'f_unlock', weapon: 'fire', cat: '解锁', name: '火系法术', color: '#ff922b', max: 1, unlock: 'fire',
         desc: function () { return '获得火系：6s 一发重火球，落点溅射'; } },
       { id: 'f_power', weapon: 'fire', cat: '强度', name: '烈焰核心', color: '#ff922b', max: 4,
-        gain: { dmg: 1.30 }, desc: function () { return '火球伤害 +30%（乘法叠加）'; } },
+        gain: { dmg: 1.40 }, desc: function () { return '火球伤害 +40%（乘法叠加）'; } },
       { id: 'f_count', weapon: 'fire', cat: '数量', name: '双球齐出', color: '#ffa94d', max: 2,
-        gain: { count: 1 }, tax: { dmg: 0.85 },
-        desc: function (lv) { return '火球 +1（当前 ' + (1 + lv) + ' 颗）'; }, cost: '每颗伤害 -15%' },
+        gain: { count: 1 }, tax: { dmg: 0.70 },
+        desc: function (lv) { return '火球 +1（当前 ' + (1 + lv) + ' 颗）'; }, cost: '每颗伤害 -30%' },
       { id: 'f_burn', weapon: 'fire', cat: '机制', name: '烧伤地带', color: '#ff6b6b', max: 2,
         gain: { burn: 1 }, tax: { dmg: 0.80 },
         desc: function (lv) { return '落点留下烧伤区 5s，每 0.4s 灼烧 ' + (1.6 * lv).toFixed(1); }, cost: '火球伤害 -20%' },
@@ -117,10 +121,10 @@
       { id: 'w_unlock', weapon: 'wind', cat: '解锁', name: '风系法术', color: '#9be15d', max: 1, unlock: 'wind',
         desc: function () { return '获得风系：5s 两股气刃，命中把敌人向后吹退'; } },
       { id: 'w_power', weapon: 'wind', cat: '强度', name: '风暴之怒', color: '#9be15d', max: 4,
-        gain: { dmg: 1.30 }, desc: function () { return '气刃伤害 +30%（乘法叠加）'; } },
+        gain: { dmg: 1.40 }, desc: function () { return '气刃伤害 +40%（乘法叠加）'; } },
       { id: 'w_count', weapon: 'wind', cat: '数量', name: '气刃分裂', color: '#b2f2bb', max: 3,
-        gain: { count: 1 }, tax: { dmg: 0.88 },
-        desc: function (lv) { return '气刃 +1（当前 ' + (2 + lv) + ' 股）'; }, cost: '每股伤害 -12%' },
+        gain: { count: 1 }, tax: { dmg: 0.70 },
+        desc: function (lv) { return '气刃 +1（当前 ' + (2 + lv) + ' 股）'; }, cost: '每股伤害 -30%' },
       { id: 'w_knock', weapon: 'wind', cat: '机制', name: '飓风冲击', color: '#66a80f', max: 2,
         gain: { knock: 1.60 }, tax: { dmg: 0.80 },
         desc: function (lv) { return '击退距离 +60%（' + Math.round(54 * Math.pow(1.6, lv)) + 'px）'; }, cost: '每股伤害 -20%' },
@@ -128,29 +132,29 @@
       { id: 't_unlock', weapon: 'thunder', cat: '解锁', name: '雷系法术', color: '#ffe066', max: 1, unlock: 'thunder',
         desc: function () { return '获得雷系：7s 一道即时落雷，向附近传导最多 10 个目标'; } },
       { id: 't_power', weapon: 'thunder', cat: '强度', name: '高压电容', color: '#ffe066', max: 4,
-        gain: { dmg: 1.30 }, desc: function () { return '闪电伤害 +30%（乘法叠加）'; } },
+        gain: { dmg: 1.40 }, desc: function () { return '闪电伤害 +40%（乘法叠加）'; } },
       { id: 't_chain', weapon: 'thunder', cat: '机制', name: '超导网络', color: '#ffd43b', max: 4,
         gain: { chain: 5 }, tax: { dmg: 0.85 },
         desc: function (lv) { return '传导目标 +5（当前 ' + (10 + lv * 5) + ' 个）'; }, cost: '每跳伤害 -15%' },
       { id: 't_count', weapon: 'thunder', cat: '数量', name: '双重放电', color: '#fab005', max: 2,
-        gain: { count: 1 }, tax: { dmg: 0.80 },
-        desc: function (lv) { return '同时落下 ' + (1 + lv) + ' 道闪电'; }, cost: '每道伤害 -20%' },
+        gain: { count: 1 }, tax: { dmg: 0.70 },
+        desc: function (lv) { return '同时落下 ' + (1 + lv) + ' 道闪电'; }, cost: '每道伤害 -30%' },
 
       { id: 'i_unlock', weapon: 'frost', cat: '解锁', name: '冰系法术', color: '#74c0fc', max: 1, unlock: 'frost',
         desc: function () { return '获得冰系：6.5s 一支冰晶，冻住敌人 0.9s（受抗性影响）'; } },
       { id: 'i_power', weapon: 'frost', cat: '强度', name: '极寒核心', color: '#74c0fc', max: 4,
-        gain: { dmg: 1.30 }, desc: function () { return '冰锥伤害 +30%（乘法叠加）'; } },
+        gain: { dmg: 1.40 }, desc: function () { return '冰锥伤害 +40%（乘法叠加）'; } },
       { id: 'i_freeze', weapon: 'frost', cat: '机制', name: '霜冻延长', color: '#a5d8ff', max: 2,
         gain: { freeze: 1.55 }, tax: { dmg: 0.85 },
         desc: function (lv) { return '冰冻时长 +55%（上限 2s，当前 ' + Math.min(2, 0.75 * Math.pow(1.55, lv)).toFixed(2) + 's）'; }, cost: '冰锥伤害 -15%' },
       { id: 'i_count', weapon: 'frost', cat: '数量', name: '冰锥分裂', color: '#4dabf7', max: 3,
-        gain: { count: 1 }, tax: { dmg: 0.88 },
-        desc: function (lv) { return '冰锥 +1（当前 ' + (1 + lv) + ' 支）'; }, cost: '每支伤害 -12%' },
+        gain: { count: 1 }, tax: { dmg: 0.70 },
+        desc: function (lv) { return '冰锥 +1（当前 ' + (1 + lv) + ' 支）'; }, cost: '每支伤害 -30%' },
 
       { id: 'p_unlock', weapon: 'poison', cat: '解锁', name: '毒系法术', color: '#a9e34b', max: 1, unlock: 'poison',
         desc: function () { return '获得毒系：8s 一坨抛物毒液，命中上毒 5s 持续掉血'; } },
       { id: 'p_power', weapon: 'poison', cat: '强度', name: '剧毒浓缩', color: '#a9e34b', max: 4,
-        gain: { dmg: 1.30 }, desc: function () { return '毒伤与直接伤害 +30%（乘法叠加）'; } },
+        gain: { dmg: 1.40 }, desc: function () { return '毒伤与直接伤害 +40%（乘法叠加）'; } },
       { id: 'p_dur', weapon: 'poison', cat: '机制', name: '蔓延瘟疫', color: '#94d82d', max: 2,
         gain: { dotDur: 1.50 }, tax: { dmg: 0.85 },
         desc: function (lv) { return '中毒持续 +50%（当前 ' + (4 * Math.pow(1.5, lv)).toFixed(1) + 's）'; }, cost: '毒伤 -15%' },
@@ -160,31 +164,31 @@
     ],
 
     levels: [
-      buildLevel('草地前哨', 1.00, 1.00,
+      buildLevel('草地前哨', 1.00, 1.00, 1.86,
         [{ grunt: 1, runner: 0.25 },
          { grunt: 1, runner: 0.50, bat: 0.20 },
          { grunt: 1, runner: 0.55, bat: 0.40 },
          { grunt: 1, runner: 0.60, bat: 0.50, tank: 0.10 }],
         [1.05, 0.95, 0.86, 0.80]),
-      buildLevel('暮色小径', 1.05, 1.03,
+      buildLevel('暮色小径', 1.05, 1.03, 1.95,
         [{ grunt: 1, runner: 0.55, bat: 0.15 },
          { grunt: 0.80, runner: 0.55, bat: 0.40 },
          { grunt: 0.70, runner: 0.50, bat: 0.50, tank: 0.12 },
          { grunt: 0.60, runner: 0.55, bat: 0.55, tank: 0.20 }],
         [0.96, 0.88, 0.80, 0.76]),
-      buildLevel('紫晶废墟', 1.10, 1.06,
+      buildLevel('紫晶废墟', 1.10, 1.06, 2.08,
         [{ grunt: 0.80, runner: 0.60, bat: 0.30, tank: 0.10 },
          { grunt: 0.70, runner: 0.55, bat: 0.50, tank: 0.18 },
          { grunt: 0.60, runner: 0.50, bat: 0.55, tank: 0.28 },
          { grunt: 0.50, runner: 0.50, bat: 0.60, tank: 0.35 }],
         [0.93, 0.85, 0.77, 0.73]),
-      buildLevel('熔岩裂谷', 1.12, 1.09,
+      buildLevel('熔岩裂谷', 1.12, 1.09, 2.04,
         [{ grunt: 0.50, runner: 0.60, bat: 0.60, tank: 0.08 },
          { grunt: 0.35, runner: 0.60, bat: 0.65, tank: 0.18 },
          { runner: 0.60, bat: 0.70, tank: 0.35 },
          { runner: 0.55, bat: 0.75, tank: 0.45 }],
         [0.89, 0.81, 0.74, 0.70]),
-      buildLevel('终焉核心', 1.20, 1.12,
+      buildLevel('终焉核心', 1.20, 1.12, 1.92,
         [{ grunt: 0.40, runner: 0.60, bat: 0.70, tank: 0.10 },
          { grunt: 0.20, runner: 0.60, bat: 0.75, tank: 0.25 },
          { runner: 0.55, bat: 0.80, tank: 0.50 },

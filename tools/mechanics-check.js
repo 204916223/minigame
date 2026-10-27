@@ -155,5 +155,16 @@ ok('衔接期间没有暂停状态', !sawPauseState && G.state === 'playing', 's
 ok('上一波残怪不被清掉', !leftover.dead || leftover.y > 300, '残怪 y=' + leftover.y.toFixed(0));
 ok('提示为小 toast 文案「第 2 波来临」', /第 2 波来临/.test(G.toast.text || ''), G.toast.text);
 
+/* 星辉：第 1 关无加成；第 2 关起每颗星 +15% 伤害 */
+G.progress.stars = [3, 0, 0, 0, 0];
+GP.resetRun(0);
+ok('第 1 关不吃星辉加成', G.player.damageMul === 1, 'mul=' + G.player.damageMul);
+GP.resetRun(1);
+ok('星辉 3 星 → 伤害 ×1.45', Math.abs(G.player.damageMul - 1.45) < 1e-9,
+  'mul=' + G.player.damageMul + ' 星=' + G.player.starBonus);
+ok('星辉只放大伤害、不改敌人血量表', C.enemyTypes.grunt.hp === 2.2, 'grunt hp=' + C.enemyTypes.grunt.hp);
+ok('关卡血量系数已分档', C.levels.every(l => l.hpMul > 1), C.levels.map(l => l.hpMul).join(' / '));
+G.progress.stars = [];
+
 console.log(fails ? '\n== ' + fails + ' 项未通过 ==' : '\n== 全部通过 ==');
 process.exit(fails ? 1 : 0);

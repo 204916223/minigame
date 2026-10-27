@@ -73,7 +73,11 @@
   }
   function resetRun(levelIndex) {
     G.state = 'playing'; G.paused = false; G.last = P.now(); G.time = 0; G.selectedLevel = levelIndex;
-    G.player = { hp: 140, maxhp: 140, lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2 };
+    var totalStars = 0, starList = G.progress.stars || [];
+    for (var si = 0; si < starList.length; si++) totalStars += starList[si] || 0;
+    var starMul = levelIndex >= (C.starBonus.fromLevel || 1) ? 1 + (C.starBonus.perStar || 0) * totalStars : 1;
+    G.player = { hp: 140, maxhp: 140, lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2,
+      starBonus: totalStars, damageMul: starMul };
     G.cardLevels = {}; G.cardOrder = [];
     G.weapons = {}; WEAPONS.forEach(function (w) { G.weapons[w.id] = { owned: w.id === 'basic', cd: 0 }; });
     G.enemies = []; G.bullets = []; G.parts = []; G.booms = []; G.floaters = []; G.zones = []; G.arcs = [];
@@ -95,7 +99,7 @@
     var type = C.enemyTypes[key], level = levelConfig(), curve = C.curve;
     var waveMul = Math.pow(curve.waveHpGrowth, G.waveIndex), dmgWaveMul = Math.pow(curve.waveDmgGrowth, G.waveIndex);
     var idx = G.waveSpawned, spawnMul = 1 + curve.spawnGrowth * idx;
-    var hp = type.hp * level.hpScale * waveMul * spawnMul;
+    var hp = type.hp * level.hpScale * (level.hpMul || 1) * waveMul * spawnMul;
     G.enemies.push({ id: ++spawnEnemy.uid, key: key, x: 20 + Math.random() * (C.width - 40), y: -30,
       hp: hp, maxhp: hp, spd: type.spd * level.speedScale, xp: type.xp,
       dmg: type.dmg * level.hpScale * dmgWaveMul * spawnMul,
@@ -233,7 +237,7 @@
   function damageEnemy(enemy, damage, source) {
     if (enemy.dead) return;
     if (!(damage >= 0)) return; /* 数值污染兜底：NaN/undefined 一律不结算 */
-    enemy.hp -= damage; enemy.flash = 1;
+    enemy.hp -= damage * (G.player.damageMul || 1); enemy.flash = 1;
     if (enemy.hp <= 0) killEnemy(enemy, source);
   }
   function hitEnemy(enemy, bullet) {

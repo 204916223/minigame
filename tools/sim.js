@@ -22,7 +22,12 @@ const POLICIES = {
     bonus: { t_unlock: 40, p_unlock: 40, t_chain: 30, p_burst: 30, t_power: 20, p_power: 20 } },
   /* 聚焦流：只开 2 把武器，把强度卡堆满——接近高手的真实打法 */
   '聚焦流': { unlockFirst: 90, maxWeapons: 2, 强度: 70, 机制: 25, 数量: 10, 解锁: 90,
-    bonus: { f_unlock: 50, f_power: 30, b_power: 20, b_rapid: 20 } }
+    bonus: { f_unlock: 50, f_power: 30, b_power: 20, b_rapid: 20 } },
+  '数量流': { unlockFirst: 100, 强度: 20, 数量: 100, 机制: 10, 解锁: 100 },
+  '伤害流': { unlockFirst: 100, 强度: 100, 数量: 0, 机制: 0, 解锁: 100 },
+  '推荐流': { unlockFirst: 100, 强度: 60, 数量: 45, 机制: 25, 解锁: 100 },
+  /* 乱选：四个分类同权重，用来验证「无脑点任何卡」不应稳过 */
+  '乱选': { unlockFirst: 0, 强度: 0, 数量: 0, 机制: 0, 解锁: 0 }
 };
 function pickWith(policy, choices) {
   let best = null, bestScore = -Infinity;
@@ -41,6 +46,10 @@ function pickWith(policy, choices) {
 function simulate(levelIndex, policy, seed) {
   let s = seed;
   Math.random = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+  /* 用「每关 STARS 星」建模星辉加成：前面每关按 0~3 星计入总星数 */
+  const starArr = new Array(C.levels.length).fill(0);
+  for (let i = 0; i < levelIndex; i++) starArr[i] = Math.min(3, STARS);
+  GP.state.progress.stars = starArr;
   GP.resetRun(levelIndex);
   const G = GP.state, dt = 1 / 60;
   let guard = 0, maxOnScreen = 0;
@@ -59,11 +68,13 @@ function simulate(levelIndex, policy, seed) {
 const argv = process.argv.slice(2);
 const arg = (name, dflt) => { const i = argv.indexOf('--' + name); return i >= 0 ? argv[i + 1] : dflt; };
 const SEEDS = parseInt(arg('seeds', '8'), 10);
+const STARS = parseInt(arg('stars', '2'), 10);
 const LEVELS = (arg('levels', '0,1,2,3,4') + '').split(',').map(Number);
 const policyNames = arg('policy', 'all') === 'all' ? Object.keys(POLICIES) : [arg('policy', 'all')];
 
 console.log('波次 ' + C.waveCount + ' 波/关 · 每关小怪 ' +
-  C.levels[0].waves.reduce((sum, w) => sum + w.kills - (w.boss ? 1 : 0), 0) + ' 只 · 卡池 ' + C.cards.length + ' 张\n');
+  C.levels[0].waves.reduce((sum, w) => sum + w.kills - (w.boss ? 1 : 0), 0) + ' 只 · 卡池 ' + C.cards.length + ' 张' +
+  ' · 星辉按每关 ' + STARS + ' 星模拟\n');
 LEVELS.forEach(lv => {
   policyNames.forEach(name => {
     const policy = POLICIES[name]; let cleared = 0, secs = [], deaths = [], last = null;
