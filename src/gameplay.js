@@ -179,8 +179,9 @@
     targets.forEach(function (t) {
       G.arcs.push({ x1: C.hero.x, y1: C.hero.y - 16, x2: t.x, y2: t.y, age: 0, life: 0.18 });
       damageEnemy(t, derived.dmg, 'thunder');
-      /* chainLightning 收的是「子弹形状」的参数，这里显式转换，别把 dmg/damage 混着用 */
-      if (!t.dead) chainLightning({ damage: derived.dmg, chain: derived.chain, chainRange: derived.chainRange,
+      /* chainLightning 收的是「子弹形状」的参数，这里显式转换，别把 dmg/damage 混着用
+         主目标被这一下电死也要从它倒下的位置继续传导；chain 总数包含主目标 */
+      chainLightning({ damage: derived.dmg, chain: derived.chain, chainRange: derived.chainRange,
         chainDecay: derived.chainDecay, freeze: derived.freeze }, t);
       puff(t.x, t.y, '#ffe066', 6, 180);
     });
@@ -258,9 +259,9 @@
     enemy.poisonDps = Math.max(enemy.poisonDps || 0, dps * (1 - (enemy.resist.poison || 0)));
     enemy.poisonT = Math.max(enemy.poisonT || 0, dur * (1 - (enemy.resist.poison || 0)));
   }
-  /* 闪电传导：从命中点按距离逐个跳，伤害逐跳衰减，最多 chain 个目标 */
+  /* 闪电传导：从命中点按距离逐个跳，伤害逐跳衰减，最多 chain 个目标（含第一个被命中的目标） */
   function chainLightning(bullet, from) {
-    var reached = {}, damage = bullet.damage, current = from, hops = Math.max(0, bullet.chain | 0);
+    var reached = {}, damage = bullet.damage, current = from, hops = Math.max(0, (bullet.chain | 0) - 1);
     reached[current.id] = true;
     for (var i = 0; i < hops; i++) {
       var best = null, bestD = bullet.chainRange * bullet.chainRange;

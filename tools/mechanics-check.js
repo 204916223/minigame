@@ -71,6 +71,23 @@ for (let i = 0; i < 600; i++) { GP.update(1 / 60);
   G.enemies.forEach(e => { if (e.hp < e.maxhp) hurt[e.id] = 1; }); }
 ok('雷系传导一次能串 ≥8 跳', maxArcs >= 8, '单帧最多 ' + maxArcs + ' 条弧');
 ok('雷系能覆盖多个目标', Object.keys(hurt).length >= 8, '受伤目标 ' + Object.keys(hurt).length);
+const THUNDER = C.weapons.filter(w => w.id === 'thunder')[0];
+ok('雷系总目标数 = 面板 chain（含首个目标）', Object.keys(hurt).length === THUNDER.chain,
+  '实际 ' + Object.keys(hurt).length + ' / 面板 ' + THUNDER.chain);
+/* 超导网络：面板 +5，实际总目标也应 +5 */
+GP.resetRun(0); give(['t_unlock', 't_chain']);
+for (let i = 0; i < 20; i++) spawnAt('grunt', 40 + i * 22, 180 + (i % 5) * 26);
+let chainHurt = {};
+for (let i = 0; i < 600; i++) { GP.update(1 / 60); G.enemies.forEach(e => { if (e.hp < e.maxhp) chainHurt[e.id] = 1; }); }
+ok('超导网络后总目标数 = 面板 15', Object.keys(chainHurt).length === 15,
+  '实际 ' + Object.keys(chainHurt).length + ' / 面板 15');
+/* 主目标被首发电死，仍然要从它倒下的位置继续传导 */
+GP.resetRun(0); give(['t_unlock']);
+const primary = spawnAt('grunt', 240, 300); primary.hp = 1; primary.maxhp = 1;
+const secondary = spawnAt('grunt', 300, 300);
+frames(400);
+ok('主目标被电死后仍会传导', secondary.hp < secondary.maxhp,
+  '主目标 dead=' + primary.dead + ' 次目标 hp=' + secondary.hp.toFixed(1) + '/' + secondary.maxhp);
 ok('传导链没有把血量算成 NaN', G.enemies.every(e => isFinite(e.hp)),
   '非有限血量 ' + G.enemies.filter(e => !isFinite(e.hp)).length + ' 个');
 
