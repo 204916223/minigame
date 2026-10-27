@@ -3,6 +3,9 @@
   var PM = root.PixelMow = root.PixelMow || {}, C = PM.Config, P = PM.Platform, GP = PM.Gameplay;
   var gridOffset = 0;
   function ctx() { return P.ctx(); }
+  function weaponColor(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.color : '#bff4ff'; }
+  function weaponLevel(id) { var G = GP.state, sum = 0;
+    C.cards.forEach(function (card) { if (card.weapon === id && !card.unlock) sum += (G.cardLevels[card.id] || 0); }); return sum; }
   function rounded(x, y, w, h, r) { var c = ctx(); r = Math.min(r, w / 2, h / 2); c.beginPath(); c.moveTo(x + r, y);
     c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
   function text(value, x, y, size, color, align, baseline, weight) { var c = ctx(); c.font = (weight || '') + ' ' + size + 'px "PingFang SC","Microsoft YaHei",sans-serif';
@@ -21,10 +24,21 @@
     for (var y = -40 + gridOffset; y < C.height; y += 40) { c.beginPath(); c.moveTo(0, y + .5); c.lineTo(C.width, y + .5); c.stroke(); } }
   function battlefield() { var c = ctx(), G = GP.state, danger = GP.dangerY();
     c.fillStyle = 'rgba(255,93,108,.18)'; c.fillRect(0, danger - 12, C.width, 14); c.fillStyle = 'rgba(255,93,108,.55)'; c.fillRect(0, danger, C.width, 2);
+    G.zones.forEach(function (z) { var fade = Math.max(0, 1 - z.age / z.life), color = z.kind === 'poison' ? '#a9e34b' : '#ff7b2b';
+      c.globalAlpha = fade * .26; c.fillStyle = color; c.beginPath(); c.arc(z.x, z.y, z.r, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = fade * .7; c.strokeStyle = color; c.lineWidth = 1; c.stroke(); }); c.globalAlpha = 1;
     G.booms.forEach(function (b) { var k = b.age / b.life, radius = b.r * (.5 + k * .9); c.globalAlpha = (1 - k) * .85; c.strokeStyle = '#ffcf6b'; c.lineWidth = 4;
       c.beginPath(); c.arc(b.x, b.y, radius, 0, Math.PI * 2); c.stroke(); }); c.globalAlpha = 1;
-    G.bullets.forEach(function (b) { c.fillStyle = b.boom ? '#ffcf6b' : '#bff4ff'; c.fillRect((b.x - b.r) | 0, (b.y - b.r) | 0, b.r * 2, b.r * 2); });
-    G.enemies.forEach(function (e) { sprite(C.sprites[e.spr], e.x, e.y, e.cell); if (e.flash > 0) { c.globalAlpha = e.flash * .8; c.fillStyle = '#fff'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
+    G.arcs.forEach(function (a) { var k = 1 - a.age / a.life; c.globalAlpha = k; c.strokeStyle = '#ffe066'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(a.x1, a.y1); var steps = 4;
+      for (var s = 1; s < steps; s++) { var t = s / steps;
+        c.lineTo(a.x1 + (a.x2 - a.x1) * t + (Math.random() - .5) * 12, a.y1 + (a.y2 - a.y1) * t + (Math.random() - .5) * 12); }
+      c.lineTo(a.x2, a.y2); c.stroke(); c.globalAlpha = 1; });
+    G.bullets.forEach(function (b) { c.fillStyle = weaponColor(b.weapon); c.fillRect((b.x - b.r) | 0, (b.y - b.r) | 0, b.r * 2, b.r * 2); });
+    G.enemies.forEach(function (e) { sprite(C.sprites[e.spr], e.x, e.y, e.cell);
+      if (e.freezeT > 0) { c.globalAlpha = .5; c.fillStyle = '#74c0fc'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
+      else if (e.poisonT > 0) { c.globalAlpha = .3; c.fillStyle = '#a9e34b'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
+      if (e.flash > 0) { c.globalAlpha = e.flash * .8; c.fillStyle = '#fff'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
       if (e.hp < e.maxhp) { var w = e.r * 2; c.fillStyle = '#0b1224'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w, 3); c.fillStyle = '#ff5d6c'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w * Math.max(0, e.hp / e.maxhp), 3); } });
     sprite(C.sprites.hero, C.hero.x, C.hero.y, 4); c.strokeStyle = 'rgba(143,233,255,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(C.hero.x, C.hero.y - 14);
     c.lineTo(C.hero.x + Math.cos(G.player.aim || -Math.PI / 2) * 14, C.hero.y - 14 + Math.sin(G.player.aim || -Math.PI / 2) * 14); c.stroke();
@@ -42,17 +56,27 @@
     G.ui.pause = { x: C.width - 42, y: top + 30, w: 32, h: 26 }; rounded(G.ui.pause.x, G.ui.pause.y, 32, 26, 6); c.fillStyle = 'rgba(17,26,48,.9)'; c.fill(); c.strokeStyle = '#33456f'; c.stroke();
     c.fillStyle = '#cdd6ee'; c.fillRect(G.ui.pause.x + 10, G.ui.pause.y + 7, 3, 12); c.fillRect(G.ui.pause.x + 18, G.ui.pause.y + 7, 3, 12);
   }
-  function skills() { var c = ctx(), G = GP.state, size = 46, gap = 6, y = Math.min(C.height - size - 12, P.safeBottom() - size - 8);
-    for (var i = 0; i < C.totalSlots; i++) { var x = 10 + i * (size + gap), id = i ? G.skillOrder[i - 1] : null; rounded(x, y, size, size, 10); c.fillStyle = 'rgba(14,21,38,.88)'; c.fill(); c.strokeStyle = i === 0 ? '#3f7fb0' : '#2c3a60'; c.lineWidth = 2; c.stroke();
-      if (i === 0) { text('⊕', x + 23, y + 23, 24, '#8fe9ff', 'center', 'middle', 'bold'); var fraction = Math.max(0, Math.min(1, G.player.cd / G.player.cdBase));
-        if (fraction > 0) { c.save(); rounded(x, y, size, size, 10); c.clip(); c.beginPath(); c.moveTo(x + 23, y + 23); c.arc(x + 23, y + 23, size, -Math.PI / 2, -Math.PI / 2 + fraction * Math.PI * 2); c.closePath(); c.fillStyle = 'rgba(4,8,16,.72)'; c.fill(); c.restore(); }
-        if (G.player.cd > 1) text((G.player.cd / 1000).toFixed(1), x + 23, y + 24, 14, '#fff', 'center', 'middle', 'bold');
-      } else if (id) { var skill = C.skills.filter(function (item) { return item.id === id; })[0]; text(skill.icon, x + 23, y + 23, 24, skill.color, 'center', 'middle', 'bold'); text(String(G.skills[id]), x + 40, y + 40, 11, '#ffd166', 'right', 'bottom', 'bold'); }
-      else text('+', x + 23, y + 23, 22, '#33456f', 'center', 'middle', 'bold');
-    }
+  function skills() { var c = ctx(), G = GP.state, size = 52, gap = 8, y = Math.min(C.height - size - 16, P.safeBottom() - size - 12);
+    var total = C.weapons.length, x0 = (C.width - (total * size + (total - 1) * gap)) / 2;
+    C.weapons.forEach(function (w, i) {
+      var x = x0 + i * (size + gap), state = G.weapons[w.id]; rounded(x, y, size, size, 11);
+      c.fillStyle = 'rgba(14,21,38,.9)'; c.fill(); c.lineWidth = 2;
+      c.strokeStyle = state && state.owned ? w.color : '#2c3a60'; c.stroke();
+      if (!state || !state.owned) { text('+', x + size / 2, y + size / 2 - 2, 20, '#3d4a70', 'center', 'middle', 'bold');
+        text(w.name.slice(0, 2), x + size / 2, y + size + 10, 9, '#5b6787', 'center', 'middle'); return; }
+      var d = state.derived;
+      text(w.icon, x + size / 2, y + 18, 20, w.color, 'center', 'middle', 'bold');
+      var fraction = Math.max(0, Math.min(1, state.cd / d.cd));
+      if (fraction > 0) { c.save(); rounded(x, y, size, size, 11); c.clip(); c.beginPath(); c.moveTo(x + size / 2, y + size / 2);
+        c.arc(x + size / 2, y + size / 2, size, -Math.PI / 2, -Math.PI / 2 + fraction * Math.PI * 2); c.closePath(); c.fillStyle = 'rgba(4,8,16,.72)'; c.fill(); c.restore(); }
+      if (state.cd > 1) text((state.cd / 1000).toFixed(1), x + size / 2, y + 19, 12, '#fff', 'center', 'middle', 'bold');
+      text('×' + d.count + ' ' + (d.dmg < 10 ? d.dmg.toFixed(1) : Math.round(d.dmg)), x + size / 2, y + size - 9, 9, '#cdd6ee', 'center', 'middle', 'bold');
+      var lv = weaponLevel(w.id); if (lv) text('Lv' + lv, x + size - 4, y + 4, 9, '#ffd166', 'right', 'top', 'bold');
+      text(w.name.slice(0, 2), x + size / 2, y + size + 10, 9, '#8b95b3', 'center', 'middle');
+    });
   }
   function menu() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.9)'; c.fillRect(0, 0, C.width, C.height);
-    text('像素割草', C.width / 2, 155, 40, '#5ad1ff', 'center', 'middle', 'bold'); text('关卡制 · 每关十波 · 自动索敌', C.width / 2, 220, 15, '#8b95b3', 'center', 'middle');
+    text('像素割草', C.width / 2, 155, 40, '#5ad1ff', 'center', 'middle', 'bold'); text('关卡制 · 每关十波 · 六系法术自由组合', C.width / 2, 220, 15, '#8b95b3', 'center', 'middle');
     text('守住阵地，保留更多生命赢取星星', C.width / 2, 248, 14, '#8b95b3', 'center', 'middle');
     G.ui.start = { x: 150, y: 390, w: 180, h: 54 }; button(G.ui.start, '选 择 关 卡', '#33b3e6');
   }
@@ -67,11 +91,25 @@
       if (unlocked) drawStars(rect.x + 275, y + 35, G.progress.stars[i] || 0, !!G.progress.flawless[i], 22); else text('🔒', rect.x + 330, y + 33, 20, '#596176', 'center', 'middle');
     });
   }
-  function levelUp() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.84)'; c.fillRect(0, 0, C.width, C.height); text('升 级 ！ 三 选 一', C.width / 2, 118, 22, '#ffd166', 'center', 'middle', 'bold');
-    G.ui.cards = G.choices.map(function (choice, i) { var rect = { x: 80, y: 155 + i * 98, w: 320, h: 84, choice: choice }, skill = choice.skill, next = choice.level + 1;
-      rounded(rect.x, rect.y, rect.w, rect.h, 12); c.fillStyle = '#16203a'; c.fill(); c.strokeStyle = '#33456f'; c.stroke();
-      text(skill.icon, rect.x + 34, rect.y + 42, 24, skill.color, 'center', 'middle', 'bold'); text(skill.name + '  Lv.' + next, rect.x + 66, rect.y + 27, 16, '#fff', 'left', 'middle', 'bold');
-      text(skill.describe(next), rect.x + 66, rect.y + 56, 12, '#aeb8d2', 'left', 'middle'); return rect; });
+  var CAT_COLOR = { 强度: '#7cff6b', 数量: '#8fe9ff', 机制: '#ffd43b', 解锁: '#ff922b' };
+  function weaponIcon(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.icon : '✦'; }
+  function levelUp() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.84)'; c.fillRect(0, 0, C.width, C.height);
+    text('升 级 ！ 三 选 一', C.width / 2, 96, 22, '#ffd166', 'center', 'middle', 'bold');
+    text('数量与机制卡会牺牲伤害，看清代价再选', C.width / 2, 122, 12, '#8b95b3', 'center', 'middle');
+    G.ui.cards = G.choices.map(function (choice, i) {
+      var rect = { x: 60, y: 145 + i * 104, w: 360, h: 92, choice: choice }, card = choice.card, next = choice.level + 1;
+      rounded(rect.x, rect.y, rect.w, rect.h, 12); c.fillStyle = '#16203a'; c.fill();
+      c.strokeStyle = card.color; c.lineWidth = 1.5; c.stroke();
+      text(weaponIcon(card.weapon), rect.x + 30, rect.y + 34, 24, card.color, 'center', 'middle', 'bold');
+      var tag = card.cat, tagW = tag.length * 12 + 10;
+      rounded(rect.x + rect.w - tagW - 12, rect.y + 12, tagW, 20, 6); c.fillStyle = CAT_COLOR[tag] || '#33456f'; c.fill();
+      text(tag, rect.x + rect.w - tagW / 2 - 12, rect.y + 22, 12, '#0b1224', 'center', 'middle', 'bold');
+      text(card.name + (card.max > 1 ? '  Lv.' + next : ''), rect.x + 58, rect.y + 26, 16, '#fff', 'left', 'middle', 'bold');
+      text(card.desc(next), rect.x + 58, rect.y + 50, 12, '#aeb8d2', 'left', 'middle');
+      if (card.cost) text('代价 · ' + card.cost, rect.x + 58, rect.y + 72, 12, '#ff8787', 'left', 'middle', 'bold');
+      else if (card.cat === '强度') text('无副作用', rect.x + 58, rect.y + 72, 12, '#7cff6b', 'left', 'middle');
+      else text('解锁新武器', rect.x + 58, rect.y + 72, 12, '#ffb27d', 'left', 'middle');
+      return rect; });
     if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 470, 13, '#8fe9ff', 'center', 'middle');
   }
   function intermission() { var c = ctx(), G = GP.state, seconds = Math.max(1, Math.ceil(G.intermission)); c.fillStyle = 'rgba(6,9,17,.7)'; c.fillRect(0, 0, C.width, C.height);
