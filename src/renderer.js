@@ -4,6 +4,24 @@
   var gridOffset = 0;
   function ctx() { return P.ctx(); }
   function weaponColor(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.color : '#bff4ff'; }
+  /* 每系一套画法：普攻细长弹、火系火球拖尾、风系弯月刃、冰系菱形冰晶、毒系滴落毒液（雷系为即时落雷，无弹丸） */
+  function drawProjectile(b) { var c = ctx(), col = weaponColor(b.weapon);
+    c.save(); c.translate(b.x, b.y); c.rotate(Math.atan2(b.vy, b.vx));
+    if (b.shape === 'orb') { c.fillStyle = 'rgba(255,146,43,.30)'; c.fillRect(-b.r * 3.4, -b.r * .5, b.r * 3.4, b.r);
+      c.fillStyle = col; c.beginPath(); c.arc(0, 0, b.r, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#fff3bf'; c.beginPath(); c.arc(b.r * .3, 0, b.r * .45, 0, Math.PI * 2); c.fill(); }
+    else if (b.shape === 'gale') { c.strokeStyle = col; c.lineWidth = 2.5;
+      c.beginPath(); c.arc(0, 0, b.r, -Math.PI * .72, Math.PI * .72); c.stroke();
+      c.globalAlpha = .5; c.beginPath(); c.arc(-b.r * .55, 0, b.r * .68, -Math.PI * .62, Math.PI * .62); c.stroke(); c.globalAlpha = 1; }
+    else if (b.shape === 'shard') { c.fillStyle = col; c.beginPath(); c.moveTo(b.r * 1.7, 0); c.lineTo(0, -b.r * .8);
+      c.lineTo(-b.r * 1.3, 0); c.lineTo(0, b.r * .8); c.closePath(); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.8)'; c.fillRect(-b.r * .3, -1, b.r * 1.4, 2); }
+    else if (b.shape === 'blob') { c.fillStyle = col; c.beginPath(); c.arc(0, 0, b.r, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = .7; c.beginPath(); c.arc(-b.r * 1.5, b.r * .35, b.r * .55, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = .4; c.beginPath(); c.arc(-b.r * 2.5, -b.r * .25, b.r * .35, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; }
+    else { c.fillStyle = 'rgba(191,244,255,.35)'; c.fillRect(-b.r * 3, -1, b.r * 2.4, 2);
+      c.fillStyle = col; c.fillRect(-b.r, -b.r * .55, b.r * 2, b.r * 1.1); }
+    c.restore(); }
   function weaponLevel(id) { var G = GP.state, sum = 0;
     C.cards.forEach(function (card) { if (card.weapon === id && !card.unlock) sum += (G.cardLevels[card.id] || 0); }); return sum; }
   function rounded(x, y, w, h, r) { var c = ctx(); r = Math.min(r, w / 2, h / 2); c.beginPath(); c.moveTo(x + r, y);
@@ -34,7 +52,7 @@
       for (var s = 1; s < steps; s++) { var t = s / steps;
         c.lineTo(a.x1 + (a.x2 - a.x1) * t + (Math.random() - .5) * 12, a.y1 + (a.y2 - a.y1) * t + (Math.random() - .5) * 12); }
       c.lineTo(a.x2, a.y2); c.stroke(); c.globalAlpha = 1; });
-    G.bullets.forEach(function (b) { c.fillStyle = weaponColor(b.weapon); c.fillRect((b.x - b.r) | 0, (b.y - b.r) | 0, b.r * 2, b.r * 2); });
+    G.bullets.forEach(drawProjectile);
     G.enemies.forEach(function (e) { sprite(C.sprites[e.spr], e.x, e.y, e.cell);
       if (e.freezeT > 0) { c.globalAlpha = .5; c.fillStyle = '#74c0fc'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
       else if (e.poisonT > 0) { c.globalAlpha = .3; c.fillStyle = '#a9e34b'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
@@ -97,8 +115,10 @@
   var CAT_COLOR = { 强度: '#7cff6b', 数量: '#8fe9ff', 机制: '#ffd43b', 解锁: '#ff922b' };
   function weaponIcon(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.icon : '✦'; }
   function levelUp() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.84)'; c.fillRect(0, 0, C.width, C.height);
-    text('升 级 ！ 三 选 一', C.width / 2, 96, 22, '#ffd166', 'center', 'middle', 'bold');
-    text('数量与机制卡会牺牲伤害，看清代价再选', C.width / 2, 122, 12, '#8b95b3', 'center', 'middle');
+    var phase = G.choices.length && G.choices[0].card.unlock;
+    text(phase ? '获 得 新 技 能' : '技 能 强 化', C.width / 2, 96, 22, '#ffd166', 'center', 'middle', 'bold');
+    text(phase ? '格子 ' + GP.ownedWeapons() + '/' + C.weaponSlots + ' · 先挑一把武器，强化要等下次升级'
+               : '数量与机制卡会牺牲伤害，看清代价再选', C.width / 2, 122, 12, '#8b95b3', 'center', 'middle');
     G.ui.cards = G.choices.map(function (choice, i) {
       var rect = { x: 60, y: 145 + i * 104, w: 360, h: 92, choice: choice }, card = choice.card, next = choice.level + 1;
       rounded(rect.x, rect.y, rect.w, rect.h, 12); c.fillStyle = '#16203a'; c.fill();

@@ -21,7 +21,7 @@
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
       waveIndex: 0, waveKills: 0, waveSpawned: 0, bossSpawned: false,
-      waveLead: 0, pendingLevelUps: 0,
+      waveLead: 0, pendingLevelUps: 0, lastPickWasUnlock: false,
       choices: [], progress: P.loadProgress(), result: null,
       ui: { cards: [], levelButtons: [] }, toast: { text: '', color: '#fff', time: 0 }
     };
@@ -44,7 +44,7 @@
       cd: base.cdBase || 0, child: 0, burn: 0, toxic: 0,
       kind: base.kind, speed: base.speed, turn: base.turn || 0, r: base.r,
       splash: base.splash || 0, splashRatio: base.splashRatio || 0,
-      knock: base.knock || 0, freeze: base.freeze || 0,
+      knock: base.knock || 0, freeze: base.freeze || 0, shape: base.shape || 'bolt',
       chain: base.chain || 0, chainRange: base.chainRange || 0, chainDecay: base.chainDecay || 1,
       dotDps: base.dotDps || 0, dotDur: base.dotDur || 0
     };
@@ -71,12 +71,12 @@
   }
   function resetRun(levelIndex) {
     G.state = 'playing'; G.paused = false; G.last = P.now(); G.time = 0; G.selectedLevel = levelIndex;
-    G.player = { hp: 100, maxhp: 100, lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2 };
+    G.player = { hp: 140, maxhp: 140, lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2 };
     G.cardLevels = {}; G.cardOrder = [];
     G.weapons = {}; WEAPONS.forEach(function (w) { G.weapons[w.id] = { owned: w.id === 'basic', cd: 0 }; });
     G.enemies = []; G.bullets = []; G.parts = []; G.booms = []; G.floaters = []; G.zones = []; G.arcs = [];
     G.spawnTimer = 0.7; G.shake = 0; G.damageFlash = 0; G.waveIndex = 0; G.waveKills = 0; G.waveSpawned = 0;
-    G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0;
+    G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0; G.lastPickWasUnlock = false;
     G.choices = []; G.ui.cards = []; G.result = null; recomputeDerived();
     toast('第 1 波', '#8fe9ff');
   }
@@ -118,7 +118,7 @@
   }
   function makeBullet(derived, target, damage, child) {
     var angle = Math.atan2(target.y - (C.hero.y - 16), target.x - C.hero.x);
-    return { weapon: derived.id, kind: derived.kind, x: C.hero.x, y: C.hero.y - 16,
+    return { weapon: derived.id, kind: derived.kind, shape: derived.shape, x: C.hero.x, y: C.hero.y - 16,
       vx: Math.cos(angle) * derived.speed, vy: Math.sin(angle) * derived.speed,
       speed: derived.speed, turn: derived.turn, target: target, damage: damage, pierce: derived.pierce,
       child: !!child, r: derived.r, life: derived.kind === 'lob' ? 3.2 : 2.6,
@@ -127,22 +127,38 @@
       chainDecay: derived.chainDecay, dotDps: derived.dotDps, dotDur: derived.dotDur, toxic: derived.toxic,
       hitIds: {}, dead: false };
   }
-  function fireWeapon(derived) {
+  /* 雷系：不落弹丸，直接从英雄劈到目标再传导，画折线弧光 */
+  function castInstant(derived) {
     var targets = nearestEnemies(derived.count);
-    if (!targets.length) return;
+    if (!targets.length) return false;
+    targets.forEach(function (t) {
+      G.arcs.push({ x1: C.hero.x, y1: C.hero.y - 16, x2: t.x, y2: t.y, age: 0, life: 0.18 });
+      damageEnemy(t, derived.dmg, 'thunder');
+      /* chainLightning 收的是「子弹形状」的参数，这里显式转换，别把 dmg/damage 混着用 */
+      if (!t.dead) chainLightning({ damage: derived.dmg, chain: derived.chain, chainRange: derived.chainRange,
+        chainDecay: derived.chainDecay, freeze: derived.freeze }, t);
+      puff(t.x, t.y, '#ffe066', 6, 180);
+    });
+    G.shake = Math.max(G.shake, 4); A.alarm(); return true;
+  }
+  function fireWeapon(derived) {
+    if (derived.kind === 'instant') return castInstant(derived);
+    var targets = nearestEnemies(derived.count);
+    if (!targets.length) return false;
     for (var i = 0; i < derived.count; i++) {
       var target = targets[i % targets.length];
       G.bullets.push(makeBullet(derived, target, derived.dmg, false));
     }
     G.player.aim = Math.atan2(targets[0].y - (C.hero.y - 16), targets[0].x - C.hero.x);
     puff(C.hero.x, C.hero.y - 20, weaponBase(derived.id).color, 3, 120);
-    if (derived.kind === 'lob') A.boom(); else if (derived.kind === 'chain') A.alarm(); else A.shoot();
+    if (derived.kind === 'lob') A.boom(); else A.shoot(); return true;
   }
   function updateWeapons(dt) {
     WEAPONS.forEach(function (w) {
       var state = G.weapons[w.id]; if (!state || !state.owned) return;
       state.cd -= dt * 1000;
-      if (state.cd <= 0) { fireWeapon(state.derived); state.cd = state.derived.cd; }
+      /* 场上没怪时不空转冷却，免得空等 5~8 秒 */
+      if (state.cd <= 0) { if (fireWeapon(state.derived)) state.cd = state.derived.cd; else state.cd = 120; }
     });
   }
   function puff(x, y, color, count, speed) {
@@ -155,12 +171,15 @@
       G.parts.push({ x: x, y: y, vx: Math.cos(angle) * velocity, vy: Math.sin(angle) * velocity - 40,
         life: 0.4 + Math.random() * 0.5, age: 0, color: color, size: 2 + Math.random() * 3, gravity: 260 }); }
   }
-  function explode(x, y, radius, damage, burn) {
+  function explode(x, y, radius, damage, burn, dot) {
     G.booms.push({ x: x, y: y, r: radius, age: 0, life: 0.35 });
     living().forEach(function (e) { var dx = e.x - x, dy = e.y - y;
-      if (dx * dx + dy * dy < radius * radius) damageEnemy(e, damage, 'splash'); });
+      if (dx * dx + dy * dy >= radius * radius) return;
+      if (dot && dot.dotDps) poisonEnemy(e, dot.dotDps, dot.dotDur);
+      damageEnemy(e, damage, 'splash'); });
     if (burn > 0) addZone(x, y, radius * 1.15, 'burn', { dps: 1.6 * burn });
-    puff(x, y, '#ffb84d', 12, 220); G.shake = Math.max(G.shake, 5); A.boom();
+    puff(x, y, dot && dot.dotDps ? '#a9e34b' : '#ffb84d', 12, 220);
+    G.shake = Math.max(G.shake, 5); A.boom();
   }
   function addZone(x, y, r, kind, opt) {
     G.zones.push({ x: x, y: y, r: r, kind: kind, dps: opt.dps || 0, dotDps: opt.dotDps || 0, dotDur: opt.dotDur || 0,
@@ -173,7 +192,7 @@
     for (var i = 0; i < count; i++) {
       var target = pool.length ? pool[(Math.random() * pool.length) | 0] : enemy;
       var angle = Math.random() * Math.PI * 2, speed = derived.speed * 0.9;
-      G.bullets.push({ weapon: derived.id, kind: 'homing', x: enemy.x, y: enemy.y,
+      G.bullets.push({ weapon: derived.id, kind: 'homing', shape: derived.shape, x: enemy.x, y: enemy.y,
         vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, speed: speed, turn: derived.turn,
         target: target, damage: derived.dmg * 0.5, pierce: 0, child: true, r: Math.max(2, derived.r - 1),
         life: 1.4, splash: 0, splashRatio: 0, burn: 0, knock: derived.knock * 0.5, freeze: derived.freeze * 0.5,
@@ -211,21 +230,22 @@
   }
   function damageEnemy(enemy, damage, source) {
     if (enemy.dead) return;
+    if (!(damage >= 0)) return; /* 数值污染兜底：NaN/undefined 一律不结算 */
     enemy.hp -= damage; enemy.flash = 1;
     if (enemy.hp <= 0) killEnemy(enemy, source);
   }
   function hitEnemy(enemy, bullet) {
-    damageEnemy(enemy, bullet.damage, bullet.weapon);
     puff(enemy.x, enemy.y, enemy.color, 3, 90);
-    if (!enemy.dead) applyWeaponEffect(bullet, enemy);
-    if (bullet.kind === 'lob') { explode(enemy.x, enemy.y, bullet.splash, bullet.damage * bullet.splashRatio, bullet.burn); return; }
+    applyWeaponEffect(bullet, enemy);
+    damageEnemy(enemy, bullet.damage, bullet.weapon);
+    if (bullet.kind === 'lob') { explode(enemy.x, enemy.y, bullet.splash, bullet.damage * bullet.splashRatio, bullet.burn, { dotDps: bullet.dotDps, dotDur: bullet.dotDur }); return; }
     if (!bullet.child) spawnChildren(weaponDerived(bullet.weapon), enemy);
   }
   function weaponDerived(id) { var state = G.weapons[id]; return state ? state.derived : null; }
   function collectLevelUps() {
     while (G.player.xp >= G.player.xpv) {
       G.player.xp -= G.player.xpv; G.player.lvl++; G.player.xpv = xpNeed(G.player.lvl);
-      G.player.maxhp += 6; G.player.hp = Math.min(G.player.maxhp, G.player.hp + 8); G.pendingLevelUps++;
+      G.player.maxhp += 10; G.player.hp = Math.min(G.player.maxhp, G.player.hp + 14); G.pendingLevelUps++;
     }
   }
   function addExperience(amount) { G.player.xp += amount; collectLevelUps(); }
@@ -256,20 +276,28 @@
   }
   function ownedWeapons() { return WEAPONS.filter(function (w) { return G.weapons[w.id] && G.weapons[w.id].owned; }).length; }
   /* 卡池：未满槽时未获得的武器解锁卡优先塞进三选一，其余随机；机制/数量卡的伤害代价在卡面明写 */
+  function shuffled(list) {
+    for (var i = list.length - 1; i > 0; i--) { var j = (Math.random() * (i + 1)) | 0, tmp = list[i]; list[i] = list[j]; list[j] = tmp; }
+    return list;
+  }
+  /* 两阶段卡池：一次三选一里不混「获得技能」和「强化」。
+     上一次拿了新技能 → 这次只出强化；上一次拿了强化 → 这次可以出未拥有的技能 */
   function buildChoices() {
-    var unlocks = [], ups = [];
+    var unlocks = [];
+    if (!G.lastPickWasUnlock && ownedWeapons() < C.weaponSlots) {
+      CARDS.forEach(function (card) {
+        if (card.unlock && !G.weapons[card.unlock].owned) unlocks.push({ card: card, level: 0 });
+      });
+    }
+    if (unlocks.length) return shuffled(unlocks).slice(0, 3);
+    var ups = [];
     CARDS.forEach(function (card) {
+      if (card.unlock) return;
       var lv = G.cardLevels[card.id] || 0;
-      if (lv >= card.max) return;
-      if (card.unlock) {
-        /* 格子占满就不再塞解锁卡，只给已有武器的强化 */
-        if (G.weapons[card.unlock].owned || ownedWeapons() >= C.weaponSlots) return;
-        unlocks.push({ card: card, level: lv });
-      }
-      else { if (!G.weapons[card.weapon].owned) return; ups.push({ card: card, level: lv }); }
+      if (lv >= card.max || !G.weapons[card.weapon].owned) return;
+      ups.push({ card: card, level: lv });
     });
-    for (var i = ups.length - 1; i > 0; i--) { var j = (Math.random() * (i + 1)) | 0, tmp = ups[i]; ups[i] = ups[j]; ups[j] = tmp; }
-    return unlocks.concat(ups).slice(0, 3);
+    return shuffled(ups).slice(0, 3);
   }
   function openLevelUp() {
     G.choices = buildChoices();
@@ -278,6 +306,7 @@
   }
   function applyChoice(choice) {
     var card = choice.card;
+    G.lastPickWasUnlock = !!card.unlock;
     if (!G.cardLevels[card.id]) G.cardOrder.push(card.id);
     G.cardLevels[card.id] = (G.cardLevels[card.id] || 0) + 1;
     if (card.unlock) { G.weapons[card.unlock].owned = true; toast('获得 ' + card.name + '！', weaponBase(card.unlock).color); }
@@ -323,7 +352,7 @@
         if (b.target) { b.tx = b.target.x; b.ty = Math.max(-20, Math.min(dangerY(), b.target.y)); }
         if (b.tx === undefined) { b.dead = true; return; }
         var ddx = b.tx - b.x, ddy = b.ty - b.y, dist = Math.sqrt(ddx * ddx + ddy * ddy);
-        if (dist < 14) { explode(b.x, b.y, b.splash, b.damage, b.burn); b.dead = true; return; }
+        if (dist < 14) { explode(b.x, b.y, b.splash, b.damage, b.burn, { dotDps: b.dotDps, dotDur: b.dotDur }); b.dead = true; return; }
         var lobAngle = Math.atan2(ddy, ddx);
         b.vx = Math.cos(lobAngle) * b.speed; b.vy = Math.sin(lobAngle) * b.speed;
       } else if (target) {
@@ -334,7 +363,7 @@
       }
       b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
       if (b.x < -10 || b.x > C.width + 10 || b.y < -10 || b.y > C.height + 10 || b.life <= 0) {
-        if (b.kind === 'lob' && b.life <= 0) explode(b.x, b.y, b.splash, b.damage * 0.5, b.burn);
+        if (b.kind === 'lob' && b.life <= 0) explode(b.x, b.y, b.splash, b.damage * 0.5, b.burn, { dotDps: b.dotDps, dotDur: b.dotDur });
         b.dead = true; return;
       }
       for (var i = 0; i < G.enemies.length; i++) { var e = G.enemies[i]; if (e.dead || b.hitIds[e.id]) continue;

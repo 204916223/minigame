@@ -71,6 +71,8 @@ for (let i = 0; i < 600; i++) { GP.update(1 / 60);
   G.enemies.forEach(e => { if (e.hp < e.maxhp) hurt[e.id] = 1; }); }
 ok('雷系传导一次能串 ≥8 跳', maxArcs >= 8, '单帧最多 ' + maxArcs + ' 条弧');
 ok('雷系能覆盖多个目标', Object.keys(hurt).length >= 8, '受伤目标 ' + Object.keys(hurt).length);
+ok('传导链没有把血量算成 NaN', G.enemies.every(e => isFinite(e.hp)),
+  '非有限血量 ' + G.enemies.filter(e => !isFinite(e.hp)).length + ' 个');
 
 /* 风系：命中把怪往后吹 */
 GP.resetRun(0); give(['w_unlock']);
@@ -128,6 +130,19 @@ ok('满 ' + C.weaponSlots + ' 槽（普攻 + 4 把解锁）', GP.ownedWeapons() 
 ok('满槽后不再发解锁卡', poolHasUnlock() === false);
 G.pendingLevelUps = 1; G.state = 'playing'; GP.update(1 / 60);
 ok('满槽时三选一全是强化卡', G.choices.length > 0 && !G.choices.some(ch => ch.card.unlock),
+  G.choices.map(ch => ch.card.name).join(' / '));
+
+/* 交替规则：拿新技能的那次不混强化，下一次只给强化 */
+GP.resetRun(0); G.pendingLevelUps = 1; G.state = 'playing'; GP.update(1 / 60);
+ok('第 1 次升级只出「获得新技能」', G.choices.length > 0 && G.choices.every(ch => ch.card.unlock),
+  G.choices.map(ch => ch.card.name).join(' / '));
+GP.applyChoice(G.choices[0]);
+G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; GP.update(1 / 60);
+ok('紧接着的第 2 次升级只出强化卡', G.choices.length > 0 && !G.choices.some(ch => ch.card.unlock),
+  G.choices.map(ch => ch.card.name).join(' / '));
+GP.applyChoice(G.choices[0]);
+G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; GP.update(1 / 60);
+ok('第 3 次又可以出未拥有的新技能', G.choices.some(ch => ch.card.unlock) || GP.ownedWeapons() >= C.weaponSlots,
   G.choices.map(ch => ch.card.name).join(' / '));
 
 /* 波次衔接不打断：本波刷完 3s 后直接进下一波，且不清场 */
