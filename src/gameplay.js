@@ -113,7 +113,10 @@
   function hasBoss() { return G.enemies.some(function (e) { return e.boss && !e.dead; }); }
   function spawnBatch() {
     var w = waveConfig();
-    var group = C.spawnGroup + Math.floor(Math.random() * ((C.spawnGroupRandom || 0) + 1));
+    var lvl = Math.max(1, G.player.lvl);
+    var groupBase = C.spawnGroupBase + C.spawnGroupPerLevel * (lvl - 1);
+    var group = Math.floor(groupBase) + Math.floor(Math.random() * ((C.spawnGroupRandom || 0) + 1));
+    group = Math.min(C.spawnGroupMax || 99, Math.max(1, group));
     group = Math.min(group, w.kills - G.waveSpawned);
     for (var i = 0; i < group; i++) spawnForWave();
     return group;

@@ -108,16 +108,18 @@ const cdBasic = G.weapons.basic.cd, cdFire = G.weapons.fire.cd;
 ok('火系与普攻独立冷却', cdBasic > 0 && cdFire > 0, 'basic=' + Math.round(cdBasic) + 'ms fire=' + Math.round(cdFire) + 'ms');
 
 /* 波次地板数量 */
-ok('每波数量 200~501', C.levels.every(l => l.waves.every(w => w.kills >= 200 && w.kills <= 501)),
+ok('每波数量 20~501', C.levels.every(l => l.waves.every(w => w.kills >= 20 && w.kills <= 501)),
   '第 1 波 ' + C.levels[0].waves[0].kills + ' 只 · 末波 ' + C.levels[0].waves[9].kills + ' 只');
 ok('末波是 501 只并包含首领', C.levels.every(l => l.waves[9].kills === 501 && l.waves[9].boss),
   C.levels.map(l => l.waves[9].kills).join(' / '));
 ok('每波刷怪数量递增到 501', C.levels[0].waves.every((w, i, a) => i === 0 || w.kills >= a[i - 1].kills),
   C.levels[0].waves.map(w => w.kills).join(' / '));
 
-/* 成组刷怪：一次 13~18 只 */
+/* 成组刷怪：数量随主角等级成长 */
 GP.resetRun(0); G.spawnTimer = 0; GP.update(1 / 60);
-ok('一次刷新 13~18 只', G.enemies.length >= 13 && G.enemies.length <= 18, 'count=' + G.enemies.length);
+ok('1 级一次刷新 3~5 只', G.enemies.length >= 3 && G.enemies.length <= 5, 'count=' + G.enemies.length);
+GP.resetRun(0); G.player.lvl = 20; G.spawnTimer = 0; GP.update(1 / 60);
+ok('20 级一次刷新 18~20 只', G.enemies.length >= 18 && G.enemies.length <= 20, 'count=' + G.enemies.length);
 
 /* 隐藏机制：主角升级后，场上怪物防御/血量/速度线性 +5% */
 GP.resetRun(0);

@@ -2,9 +2,9 @@
 (function (root) {
   var PM = root.PixelMow = root.PixelMow || {};
 
-  /* 波次数量规则：每波 200 起，逐波递增到末波 501；
+  /* 波次数量规则：前期少、后期多，20 → 30 → 40 → 55 → 75 → 100 → 140 → 200 → 320 → 501；
      末波 500 只小怪 + 1 只首领（首领占用最后一个刷怪名额）。 */
-  var WAVE_KILLS = [200, 220, 250, 280, 320, 360, 400, 440, 470, 501];
+  var WAVE_KILLS = [20, 30, 40, 55, 75, 100, 140, 200, 320, 501];
   var LAST_WAVE = WAVE_KILLS.length - 1;
 
   /* 出怪速度：每一波都比上一波快至少 10%（间隔 /1.1），越到后面越密 */
@@ -30,10 +30,13 @@
     height: 640,
     /* 波次衔接：不再插 3 秒全屏横幅，本波最后一只怪出场后倒计时 3s 直接接下一波 */
     waveLeadSeconds: 3,
-    /* 出怪速度每波至少 +10%（间隔等比缩小）；每次成组刷 13~18 只 */
+    /* 出怪速度每波至少 +10%（间隔等比缩小）；
+       每批刷怪数随主角等级成长：1 级 3~5、10 级 10~12、20 级 18~20、30 级封顶 26~28 */
     spawnSpeedPerWave: SPAWN_SPEED_PER_WAVE,
-    spawnGroup: 13,
-    spawnGroupRandom: 5,
+    spawnGroupBase: 3,
+    spawnGroupPerLevel: 0.8,
+    spawnGroupRandom: 2,
+    spawnGroupMax: 28,
     spawnGroupTimeFactor: 1.0,
     /* 武器槽上限：占满后卡池不再发「获得新武器」的解锁卡，只强化已有武器 */
     weaponSlots: 5,
@@ -177,31 +180,31 @@
          { grunt: 1, runner: 0.50, bat: 0.20 },
          { grunt: 1, runner: 0.55, bat: 0.40 },
          { grunt: 1, runner: 0.60, bat: 0.50, tank: 0.10 }],
-        1.603),
+        8.0),
       buildLevel('暮色小径', 1.05, 1.03, 1.90,
         [{ grunt: 1, runner: 0.55, bat: 0.15 },
          { grunt: 0.80, runner: 0.55, bat: 0.40 },
          { grunt: 0.70, runner: 0.50, bat: 0.50, tank: 0.12 },
          { grunt: 0.60, runner: 0.55, bat: 0.55, tank: 0.20 }],
-        1.523),
+        8.0),
       buildLevel('紫晶废墟', 1.10, 1.06, 2.10,
         [{ grunt: 0.80, runner: 0.60, bat: 0.30, tank: 0.10 },
          { grunt: 0.70, runner: 0.55, bat: 0.50, tank: 0.18 },
          { grunt: 0.60, runner: 0.50, bat: 0.55, tank: 0.28 },
          { grunt: 0.50, runner: 0.50, bat: 0.60, tank: 0.35 }],
-        1.463),
+        8.0),
       buildLevel('熔岩裂谷', 1.12, 1.09, 2.04,
         [{ grunt: 0.50, runner: 0.60, bat: 0.60, tank: 0.08 },
          { grunt: 0.35, runner: 0.60, bat: 0.65, tank: 0.18 },
          { runner: 0.60, bat: 0.70, tank: 0.35 },
          { runner: 0.55, bat: 0.75, tank: 0.45 }],
-        1.403),
+        8.0),
       buildLevel('终焉核心', 1.20, 1.12, 1.85,
         [{ grunt: 0.40, runner: 0.60, bat: 0.70, tank: 0.10 },
          { grunt: 0.20, runner: 0.60, bat: 0.75, tank: 0.25 },
          { runner: 0.55, bat: 0.80, tank: 0.50 },
          { runner: 0.50, bat: 0.85, tank: 0.60 }],
-        1.303)
+        8.0)
     ]
   };
 })(typeof GameGlobal !== 'undefined' ? GameGlobal : window);
