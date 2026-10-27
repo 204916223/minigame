@@ -11,7 +11,7 @@
   function loop() {
     var current = P.now(), dt = (current - GP.state.last) / 1000; GP.state.last = current;
     dt = Math.max(0, Math.min(0.05, dt));
-    if (GP.state.state === 'intermission' || (GP.state.state === 'playing' && !GP.state.paused)) GP.update(dt);
+    if (GP.state.state === 'playing' && !GP.state.paused) GP.update(dt);
     PM.Renderer.render(dt); requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);

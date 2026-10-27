@@ -74,6 +74,9 @@
       var lv = weaponLevel(w.id); if (lv) text('Lv' + lv, x + size - 4, y + 4, 9, '#ffd166', 'right', 'top', 'bold');
       text(w.name.slice(0, 2), x + size / 2, y + size + 10, 9, '#8b95b3', 'center', 'middle');
     });
+    var owned = GP.ownedWeapons();
+    text('武器 ' + owned + '/' + C.weaponSlots + (owned >= C.weaponSlots ? ' · 已满，只出强化卡' : ''), C.width / 2, y - 8, 10,
+      owned >= C.weaponSlots ? '#ffb27d' : '#5b6787', 'center', 'middle');
   }
   function menu() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.9)'; c.fillRect(0, 0, C.width, C.height);
     text('像素割草', C.width / 2, 155, 40, '#5ad1ff', 'center', 'middle', 'bold'); text('关卡制 · 每关十波 · 六系法术自由组合', C.width / 2, 220, 15, '#8b95b3', 'center', 'middle');
@@ -112,8 +115,6 @@
       return rect; });
     if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 470, 13, '#8fe9ff', 'center', 'middle');
   }
-  function intermission() { var c = ctx(), G = GP.state, seconds = Math.max(1, Math.ceil(G.intermission)); c.fillStyle = 'rgba(6,9,17,.7)'; c.fillRect(0, 0, C.width, C.height);
-    text('第 ' + (G.waveIndex + 1) + ' 波清除', C.width / 2, 260, 28, '#7cff6b', 'center', 'middle', 'bold'); text(seconds + ' 秒后进入第 ' + (G.waveIndex + 2) + ' 波', C.width / 2, 312, 18, '#e8ecf7', 'center', 'middle'); }
   function pause() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.74)'; c.fillRect(0, 0, C.width, C.height); text('已 暂 停', C.width / 2, 260, 28, '#e8ecf7', 'center', 'middle', 'bold');
     G.ui.resume = { x: 160, y: 315, w: 160, h: 50 }; button(G.ui.resume, '继 续', '#33b3e6');
     G.ui.pauseBack = { x: 160, y: 382, w: 160, h: 46 }; button(G.ui.pauseBack, '返回选关', '#26324f', '#cdd6ee'); }
@@ -133,7 +134,7 @@
     if (G.state === 'menu') menu(); else if (G.state === 'levelselect') levelSelect(); else {
       c.save(); if (G.shake > 0) c.translate((Math.random() - .5) * G.shake, (Math.random() - .5) * G.shake); battlefield(); c.restore(); hud(); skills();
       if (G.toast.time > 0 && G.state === 'playing') text(G.toast.text, C.width / 2, Math.max(112, P.safeTop() + 96), 18, G.toast.color, 'center', 'middle', 'bold');
-      if (G.state === 'levelup') levelUp(); else if (G.state === 'intermission') intermission(); else if (G.state === 'over') over(); else if (G.state === 'cleared') cleared(); else if (G.paused) pause();
+      if (G.state === 'levelup') levelUp(); else if (G.state === 'over') over(); else if (G.state === 'cleared') cleared(); else if (G.paused) pause();
     }
   }
   PM.Renderer = { render: render };

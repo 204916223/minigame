@@ -40,7 +40,7 @@ function spawnAt(key, x, y) { G.enemies.push({ id: ++targetId, key: key, x: x, y
   color: '#fff', resist: C.enemyTypes[key].resist, sway: 0, phase: 0, flash: 0, freezeT: 0, poisonT: 0, poisonDps: 0,
   boss: !!C.enemyTypes[key].boss, dead: false }); return G.enemies[G.enemies.length - 1]; }
 
-['menu', 'levelselect', 'playing', 'levelup', 'intermission', 'over', 'cleared'].forEach(s => {
+['menu', 'levelselect', 'playing', 'levelup', 'over', 'cleared'].forEach(s => {
   GP.resetRun(0); G.state = s;
   if (s === 'levelup') G.choices = [card('b_split'), card('f_unlock'), card('i_freeze')].map(c => ({ card: c, level: 0 }));
   if (s === 'cleared' || s === 'over') G.result = { stars: 2, flawless: false, ratio: 0.5 };
@@ -104,6 +104,41 @@ GP.resetRun(0); give(['f_unlock']);
 frames(120);
 const cdBasic = G.weapons.basic.cd, cdFire = G.weapons.fire.cd;
 ok('火系与普攻独立冷却', cdBasic > 0 && cdFire > 0, 'basic=' + Math.round(cdBasic) + 'ms fire=' + Math.round(cdFire) + 'ms');
+
+/* 波次地板数量 */
+ok('每波最少 50 只', C.levels.every(l => l.waves.every(w => w.kills >= 50)),
+  '第 1 波 ' + C.levels[0].waves[0].kills + ' 只 · 每关小怪 ' +
+  C.levels[0].waves.reduce((sum, w) => sum + w.kills - (w.boss ? 1 : 0), 0) + ' 只');
+
+/* 满槽后卡池不再出解锁卡 */
+GP.resetRun(0);
+const unlockIds = C.cards.filter(c => c.unlock).map(c => c.id);
+/* buildChoices 未导出，用一次真实 openLevelUp 观察卡池 */
+function poolHasUnlock() {
+  let found = false;
+  for (let i = 0; i < 40; i++) {
+    G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; GP.update(1 / 60);
+    if (G.choices.some(ch => ch.card.unlock)) found = true;
+  }
+  return found;
+}
+ok('4 把武器时卡池仍会出解锁卡', poolHasUnlock() === true);
+give(unlockIds.slice(0, 4)); /* 普攻自带 1 槽 + 4 把解锁 = 满 5 槽 */
+ok('满 ' + C.weaponSlots + ' 槽（普攻 + 4 把解锁）', GP.ownedWeapons() === C.weaponSlots, 'owned=' + GP.ownedWeapons());
+ok('满槽后不再发解锁卡', poolHasUnlock() === false);
+G.pendingLevelUps = 1; G.state = 'playing'; GP.update(1 / 60);
+ok('满槽时三选一全是强化卡', G.choices.length > 0 && !G.choices.some(ch => ch.card.unlock),
+  G.choices.map(ch => ch.card.name).join(' / '));
+
+/* 波次衔接不打断：本波刷完 3s 后直接进下一波，且不清场 */
+GP.resetRun(0); G.waveSpawned = C.levels[0].waves[0].kills; G.pendingLevelUps = 0;
+spawnAt('grunt', 200, 300); const leftover = G.enemies[G.enemies.length - 1];
+let sawPauseState = false;
+for (let i = 0; i < 200; i++) { GP.update(1 / 60); if (G.state === 'intermission') sawPauseState = true; }
+ok('刷完 3s 后自动进第 2 波', G.waveIndex === 1, 'waveIndex=' + G.waveIndex);
+ok('衔接期间没有暂停状态', !sawPauseState && G.state === 'playing', 'state=' + G.state);
+ok('上一波残怪不被清掉', !leftover.dead || leftover.y > 300, '残怪 y=' + leftover.y.toFixed(0));
+ok('提示为小 toast 文案「第 2 波来临」', /第 2 波来临/.test(G.toast.text || ''), G.toast.text);
 
 console.log(fails ? '\n== ' + fails + ' 项未通过 ==' : '\n== 全部通过 ==');
 process.exit(fails ? 1 : 0);

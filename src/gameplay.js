@@ -21,7 +21,7 @@
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
       waveIndex: 0, waveKills: 0, waveSpawned: 0, bossSpawned: false,
-      intermission: 0, pendingLevelUps: 0, waveCompletePending: false,
+      waveLead: 0, pendingLevelUps: 0,
       choices: [], progress: P.loadProgress(), result: null,
       ui: { cards: [], levelButtons: [] }, toast: { text: '', color: '#fff', time: 0 }
     };
@@ -76,7 +76,7 @@
     G.weapons = {}; WEAPONS.forEach(function (w) { G.weapons[w.id] = { owned: w.id === 'basic', cd: 0 }; });
     G.enemies = []; G.bullets = []; G.parts = []; G.booms = []; G.floaters = []; G.zones = []; G.arcs = [];
     G.spawnTimer = 0.7; G.shake = 0; G.damageFlash = 0; G.waveIndex = 0; G.waveKills = 0; G.waveSpawned = 0;
-    G.bossSpawned = false; G.intermission = 0; G.pendingLevelUps = 0; G.waveCompletePending = false;
+    G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0;
     G.choices = []; G.ui.cards = []; G.result = null; recomputeDerived();
     toast('第 1 波', '#8fe9ff');
   }
@@ -244,27 +244,28 @@
     addExperience(enemy.xp);
   }
   function isFinalWave() { return G.waveIndex >= levelConfig().waves.length - 1; }
-  function isWaveResolved() {
-    return G.waveSpawned >= waveConfig().kills && !G.enemies.some(function (e) { return !e.dead; });
-  }
+  function waveSpawnComplete() { return G.waveSpawned >= waveConfig().kills; }
+  function fieldClear() { return !G.enemies.some(function (e) { return !e.dead; }); }
+  /* 关卡结束只看末波：最后一只首领倒下即通关；中途不暂停、不清场 */
   function settleCombatFlow() {
     if (G.state !== 'playing') return;
-    if (isWaveResolved()) {
-      if (isFinalWave()) {
-        G.pendingLevelUps = 0; G.choices = []; G.ui.cards = []; G.waveCompletePending = false; finishLevel(); return;
-      }
-      G.waveCompletePending = true;
+    if (isFinalWave() && waveSpawnComplete() && fieldClear()) {
+      G.pendingLevelUps = 0; G.choices = []; G.ui.cards = []; finishLevel(); return;
     }
-    if (G.pendingLevelUps > 0) { openLevelUp(); return; }
-    if (G.waveCompletePending) finishWave();
+    if (G.pendingLevelUps > 0) openLevelUp();
   }
-  /* 卡池：未获得的武器解锁卡优先塞进三选一，其余随机；机制/数量卡的伤害代价在卡面明写 */
+  function ownedWeapons() { return WEAPONS.filter(function (w) { return G.weapons[w.id] && G.weapons[w.id].owned; }).length; }
+  /* 卡池：未满槽时未获得的武器解锁卡优先塞进三选一，其余随机；机制/数量卡的伤害代价在卡面明写 */
   function buildChoices() {
     var unlocks = [], ups = [];
     CARDS.forEach(function (card) {
       var lv = G.cardLevels[card.id] || 0;
       if (lv >= card.max) return;
-      if (card.unlock) { if (G.weapons[card.unlock].owned) return; unlocks.push({ card: card, level: lv }); }
+      if (card.unlock) {
+        /* 格子占满就不再塞解锁卡，只给已有武器的强化 */
+        if (G.weapons[card.unlock].owned || ownedWeapons() >= C.weaponSlots) return;
+        unlocks.push({ card: card, level: lv });
+      }
       else { if (!G.weapons[card.weapon].owned) return; ups.push({ card: card, level: lv }); }
     });
     for (var i = ups.length - 1; i > 0; i--) { var j = (Math.random() * (i + 1)) | 0, tmp = ups[i]; ups[i] = ups[j]; ups[j] = tmp; }
@@ -272,7 +273,7 @@
   }
   function openLevelUp() {
     G.choices = buildChoices();
-    if (!G.choices.length) { G.pendingLevelUps = 0; if (G.waveCompletePending) finishWave(); return; }
+    if (!G.choices.length) { G.pendingLevelUps = 0; return; }
     G.state = 'levelup'; A.level();
   }
   function applyChoice(choice) {
@@ -283,17 +284,12 @@
     recomputeDerived();
     G.pendingLevelUps = Math.max(0, G.pendingLevelUps - 1); G.choices = []; G.ui.cards = []; A.pick();
     if (G.pendingLevelUps > 0) openLevelUp();
-    else if (G.waveCompletePending) finishWave();
     else { G.state = 'playing'; G.last = P.now(); }
   }
-  function finishWave() {
-    G.waveCompletePending = false; G.enemies = []; G.bullets = []; G.zones = []; G.arcs = [];
-    if (isFinalWave()) { finishLevel(); return; }
-    G.state = 'intermission'; G.intermission = C.intermissionSeconds; A.clear();
-  }
   function nextWave() {
-    G.waveIndex++; G.waveKills = 0; G.waveSpawned = 0; G.bossSpawned = false; G.spawnTimer = 0.5;
-    G.state = 'playing'; G.last = P.now(); toast('第 ' + (G.waveIndex + 1) + ' 波', '#8fe9ff');
+    G.waveIndex++; G.waveKills = 0; G.waveSpawned = 0; G.bossSpawned = false; G.spawnTimer = 0.2;
+    G.waveLead = C.waveLeadSeconds; G.last = P.now();
+    toast('第 ' + (G.waveIndex + 1) + ' 波来临', '#8fe9ff');
   }
   function finishLevel() {
     var ratio = G.player.hp / G.player.maxhp, stars = calculateStars(ratio), flawless = ratio >= 0.999999;
@@ -361,10 +357,12 @@
     G.shake = Math.max(0, G.shake - dt * 40); G.damageFlash = Math.max(0, G.damageFlash - dt * 2); G.toast.time -= dt;
   }
   function update(dt) {
-    if (G.state === 'intermission') { G.intermission -= dt; updateEffects(dt); if (G.intermission <= 0) nextWave(); return; }
     if (G.state !== 'playing' || G.paused) return;
     G.time += dt * 1000; G.spawnTimer -= dt;
-    if (G.spawnTimer <= 0 && !G.waveCompletePending && G.waveSpawned < waveConfig().kills) { spawnForWave(); G.spawnTimer = waveConfig().interval * (0.8 + Math.random() * 0.4) * (G.waveIndex === 0 ? (C.curve.openingRelief || 1) : 1); }
+    if (G.spawnTimer <= 0 && G.waveSpawned < waveConfig().kills) { spawnForWave(); G.spawnTimer = waveConfig().interval * (0.8 + Math.random() * 0.4) * (G.waveIndex < (C.curve.openingReliefWaves || 1) ? (C.curve.openingRelief || 1) : 1); }
+    /* 本波最后一只怪已出场 → 倒计时接下一波，全程不打断 */
+    if (waveSpawnComplete()) { if (!isFinalWave()) { G.waveLead -= dt; if (G.waveLead <= 0) nextWave(); } }
+    else G.waveLead = C.waveLeadSeconds;
     updateWeapons(dt);
     G.enemies.forEach(function (e) {
       if (e.dead) return;
@@ -392,6 +390,7 @@
     state: G, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, applyChoice: applyChoice,
     isLevelUnlocked: isLevelUnlocked, canContinue: canContinue, calculateStars: calculateStars,
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
+    ownedWeapons: ownedWeapons,
     recompute: recomputeDerived,
     pause: function (value) { G.paused = value; G.last = P.now(); },
     toast: toast, dangerY: dangerY, waveConfig: waveConfig

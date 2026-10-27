@@ -3,9 +3,9 @@
   var PM = root.PixelMow = root.PixelMow || {};
 
   /* 波次数量规则（全局统一，关卡只改怪物组合与刷怪节奏）：
-     第 1-3 波 每波 20 只；第 4-6 波 每波 30 只；第 7-9 波 每波 50 只；
-     第 10 波 50 只小怪 + 1 只首领（首领占用该波最后一次刷怪名额，故为 51）。 */
-  var WAVE_KILLS = [20, 20, 20, 30, 30, 30, 50, 50, 50, 51];
+     每波地板 50 只；第 1-3 波 50、第 4-6 波 60、第 7-9 波 80；
+     第 10 波 100 只小怪 + 1 只首领（首领占用该波最后一次刷怪名额，故为 101）。 */
+  var WAVE_KILLS = [50, 50, 50, 60, 60, 60, 80, 80, 80, 101];
   var LAST_WAVE = WAVE_KILLS.length - 1;
 
   /* tiers = [1-3 波, 4-6 波, 7-9 波, 第 10 波] 四档配置，展开成 10 个波次 */
@@ -25,13 +25,16 @@
   PM.Config = {
     width: 480,
     height: 640,
-    intermissionSeconds: 3,
+    /* 波次衔接：不再插 3 秒全屏横幅，本波最后一只怪出场后倒计时 3s 直接接下一波 */
+    waveLeadSeconds: 3,
+    /* 武器槽上限：占满后卡池不再发「获得新武器」的解锁卡，只强化已有武器 */
+    weaponSlots: 5,
     waveCount: WAVE_KILLS.length,
     hero: { x: 240, y: 552 },
 
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
-     openingRelief 只放宽第 1 波刷怪间隔，给开局攒经验留口气，不改每波数量 */
-    curve: { waveHpGrowth: 1.10, waveDmgGrowth: 1.035, spawnGrowth: 0.006, openingRelief: 1.35 },
+     openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔，给零升级开局攒经验留口气，不改每波数量 */
+    curve: { waveHpGrowth: 1.08, waveDmgGrowth: 1.03, spawnGrowth: 0.003, openingRelief: 1.7, openingReliefWaves: 2 },
     /* 控制上限：冰冻最长 2s（受抗性衰减），击退不能把怪推出屏幕 */
     control: { freezeCap: 2, knockMinY: -20 },
 
@@ -66,7 +69,7 @@
        basic 快 / fire 高伤 / wind 击退 / thunder 传导 / frost 冰冻 / poison 持续伤害 */
     weapons: [
       { id: 'basic', name: '普通攻击', icon: '⊕', color: '#8fe9ff', kind: 'homing',
-        cdBase: 620, dmgBase: 0.85, countBase: 1, pierceBase: 0, speed: 470, turn: 11, r: 4,
+        cdBase: 560, dmgBase: 1.15, countBase: 1, pierceBase: 0, speed: 470, turn: 11, r: 4,
         tag: '攻击速度快' },
       { id: 'fire', name: '火系法术', icon: '✹', color: '#ff922b', kind: 'lob',
         cdBase: 2200, dmgBase: 6, countBase: 1, speed: 300, r: 6, splash: 66, splashRatio: 0.6,
@@ -95,7 +98,7 @@
       { id: 'b_power', weapon: 'basic', cat: '强度', name: '高爆弹药', color: '#ffd166', max: 5,
         gain: { dmg: 1.30 }, desc: function () { return '普攻伤害 +30%（乘法叠加）'; } },
       { id: 'b_rapid', weapon: 'basic', cat: '强度', name: '快速装填', color: '#a3bffa', max: 4,
-        gain: { cd: 0.86 }, desc: function (lv) { return '冷却 -14%（当前 ' + Math.round(620 * Math.pow(0.86, lv)) + 'ms）'; } },
+        gain: { cd: 0.86 }, desc: function (lv) { return '冷却 -14%（当前 ' + Math.round(560 * Math.pow(0.86, lv)) + 'ms）'; } },
 
       { id: 'f_unlock', weapon: 'fire', cat: '解锁', name: '火系法术', color: '#ff922b', max: 1, unlock: 'fire',
         desc: function () { return '与普攻同时发射，独立 2.2s 冷却，单发伤害高'; } },
@@ -159,31 +162,31 @@
          { grunt: 1, runner: 0.50, bat: 0.20 },
          { grunt: 1, runner: 0.55, bat: 0.40 },
          { grunt: 1, runner: 0.60, bat: 0.50, tank: 0.10 }],
-        [1.20, 1.10, 1.00, 0.95]),
-      buildLevel('暮色小径', 1.06, 1.03,
+        [0.94, 0.86, 0.78, 0.74]),
+      buildLevel('暮色小径', 1.05, 1.03,
         [{ grunt: 1, runner: 0.55, bat: 0.15 },
          { grunt: 0.80, runner: 0.55, bat: 0.40 },
          { grunt: 0.70, runner: 0.50, bat: 0.50, tank: 0.12 },
          { grunt: 0.60, runner: 0.55, bat: 0.55, tank: 0.20 }],
-        [1.10, 1.02, 0.95, 0.90]),
-      buildLevel('紫晶废墟', 1.12, 1.06,
+        [0.86, 0.80, 0.74, 0.70]),
+      buildLevel('紫晶废墟', 1.10, 1.06,
         [{ grunt: 0.80, runner: 0.60, bat: 0.30, tank: 0.10 },
          { grunt: 0.70, runner: 0.55, bat: 0.50, tank: 0.18 },
          { grunt: 0.60, runner: 0.50, bat: 0.55, tank: 0.28 },
          { grunt: 0.50, runner: 0.50, bat: 0.60, tank: 0.35 }],
-        [1.05, 0.98, 0.90, 0.85]),
-      buildLevel('熔岩裂谷', 1.18, 1.09,
-        [{ grunt: 0.40, runner: 0.60, bat: 0.60, tank: 0.12 },
-         { grunt: 0.35, runner: 0.60, bat: 0.65, tank: 0.25 },
+        [0.82, 0.76, 0.70, 0.66]),
+      buildLevel('熔岩裂谷', 1.15, 1.09,
+        [{ grunt: 0.50, runner: 0.60, bat: 0.60, tank: 0.08 },
+         { grunt: 0.35, runner: 0.60, bat: 0.65, tank: 0.18 },
          { runner: 0.60, bat: 0.70, tank: 0.35 },
          { runner: 0.55, bat: 0.75, tank: 0.45 }],
-        [1.00, 0.92, 0.85, 0.80]),
-      buildLevel('终焉核心', 1.26, 1.12,
-        [{ grunt: 0.30, runner: 0.60, bat: 0.70, tank: 0.20 },
-         { runner: 0.60, bat: 0.75, tank: 0.35 },
+        [0.78, 0.72, 0.66, 0.62]),
+      buildLevel('终焉核心', 1.20, 1.12,
+        [{ grunt: 0.40, runner: 0.60, bat: 0.70, tank: 0.10 },
+         { grunt: 0.20, runner: 0.60, bat: 0.75, tank: 0.25 },
          { runner: 0.55, bat: 0.80, tank: 0.50 },
          { runner: 0.50, bat: 0.85, tank: 0.60 }],
-        [0.95, 0.86, 0.80, 0.75])
+        [0.74, 0.67, 0.62, 0.58])
     ]
   };
 })(typeof GameGlobal !== 'undefined' ? GameGlobal : window);

@@ -19,14 +19,18 @@ const POLICIES = {
   '控制流': { unlockFirst: 60, 机制: 45, 数量: 20, 强度: 15, 解锁: 60,
     bonus: { i_freeze: 25, w_knock: 25, p_burst: 20, t_chain: 15 } },
   '雷毒 AoE': { unlockFirst: 80, 机制: 40, 强度: 25, 数量: 20, 解锁: 80,
-    bonus: { t_unlock: 40, p_unlock: 40, t_chain: 30, p_burst: 30, t_power: 20, p_power: 20 } }
+    bonus: { t_unlock: 40, p_unlock: 40, t_chain: 30, p_burst: 30, t_power: 20, p_power: 20 } },
+  /* 聚焦流：只开 2 把武器，把强度卡堆满——接近高手的真实打法 */
+  '聚焦流': { unlockFirst: 90, maxWeapons: 2, 强度: 70, 机制: 25, 数量: 10, 解锁: 90,
+    bonus: { f_unlock: 50, f_power: 30, b_power: 20, b_rapid: 20 } }
 };
 function pickWith(policy, choices) {
   let best = null, bestScore = -Infinity;
   choices.forEach(choice => {
     const card = choice.card;
     let score = policy[card.cat] || 0;
-    if (card.unlock && policy.unlockFirst) score += policy.unlockFirst;
+    if (card.unlock) { if (policy.unlockFirst) score += policy.unlockFirst;
+      if (policy.maxWeapons && GP.ownedWeapons() >= policy.maxWeapons) score -= 500; }
     if (policy.bonus && policy.bonus[card.id]) score += policy.bonus[card.id];
     score += Math.random() * 2;
     if (score > bestScore) { bestScore = score; best = choice; }
