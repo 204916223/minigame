@@ -10,6 +10,9 @@ PM.Platform = { loadProgress: () => ({ stars: [], flawless: [] }), saveProgress:
 PM.Audio = new Proxy({}, { get: () => () => {} });
 require(path.join(BASE, 'src', 'gameplay.js'));
 const GP = PM.Gameplay, C = PM.Config;
+const HP_MUL = +(process.env.HP_MUL || 1), SPD_MUL = +(process.env.SPD_MUL || 1), TICK_MUL = +(process.env.TICK_MUL || 1);
+if (HP_MUL !== 1 || SPD_MUL !== 1) C.levels.forEach(l => { l.hpMul *= HP_MUL; l.speedScale *= SPD_MUL; });
+if (TICK_MUL !== 1) C.levels.forEach(l => l.waves.forEach(w => { w.interval *= TICK_MUL; }));
 const cardById = id => C.cards.filter(c => c.id === id)[0];
 
 /* 流派：score 越高越优先；解锁卡永远先抢，保证武器线能铺开 */

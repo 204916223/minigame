@@ -99,17 +99,25 @@
     var type = C.enemyTypes[key], level = levelConfig(), curve = C.curve;
     var waveMul = Math.pow(curve.waveHpGrowth, G.waveIndex), dmgWaveMul = Math.pow(curve.waveDmgGrowth, G.waveIndex);
     var idx = G.waveSpawned, spawnMul = 1 + curve.spawnGrowth * idx;
-    var hp = type.hp * level.hpScale * (level.hpMul || 1) * waveMul * spawnMul;
+    var lvlMul = 1 + ((C.curve.levelEnemyGrowth || 1) - 1) * Math.max(0, G.player.lvl - 1);
+    var hp = type.hp * level.hpScale * (level.hpMul || 1) * lvlMul * waveMul * spawnMul;
     G.enemies.push({ id: ++spawnEnemy.uid, key: key, x: 20 + Math.random() * (C.width - 40), y: -30,
-      hp: hp, maxhp: hp, spd: type.spd * level.speedScale, xp: type.xp,
+      hp: hp, maxhp: hp, spd: type.spd * level.speedScale * lvlMul, xp: type.xp,
       dmg: type.dmg * level.hpScale * dmgWaveMul * spawnMul,
-      r: type.r, cell: type.cell, spr: type.spr, color: type.color,
+      r: type.r, cell: type.cell, spr: type.spr, color: type.color, def: lvlMul,
       resist: type.resist, sway: type.sway ? 7 + Math.random() * 7 : 0, phase: Math.random() * Math.PI * 2,
       flash: 0, freezeT: 0, poisonT: 0, poisonDps: 0, boss: !!type.boss, dead: false });
     G.waveSpawned++;
   }
   spawnEnemy.uid = 0;
   function hasBoss() { return G.enemies.some(function (e) { return e.boss && !e.dead; }); }
+  function spawnBatch() {
+    var w = waveConfig();
+    var group = C.spawnGroup + Math.floor(Math.random() * ((C.spawnGroupRandom || 0) + 1));
+    group = Math.min(group, w.kills - G.waveSpawned);
+    for (var i = 0; i < group; i++) spawnForWave();
+    return group;
+  }
   function spawnForWave() {
     var w = waveConfig();
     if (G.waveSpawned >= w.kills) return;
@@ -237,7 +245,7 @@
   function damageEnemy(enemy, damage, source) {
     if (enemy.dead) return;
     if (!(damage >= 0)) return; /* 数值污染兜底：NaN/undefined 一律不结算 */
-    enemy.hp -= damage * (G.player.damageMul || 1); enemy.flash = 1;
+    enemy.hp -= damage * (G.player.damageMul || 1) / (enemy.def || 1); enemy.flash = 1;
     if (enemy.hp <= 0) killEnemy(enemy, source);
   }
   function hitEnemy(enemy, bullet) {
@@ -248,10 +256,23 @@
     if (!bullet.child) spawnChildren(weaponDerived(bullet.weapon), enemy);
   }
   function weaponDerived(id) { var state = G.weapons[id]; return state ? state.derived : null; }
+  /* 隐藏机制：主角每升 1 级，场上和之后刷出的怪防御/血量/速度各 +5%（线性叠加） */
+  function scaleEnemiesOnLevelUp() {
+    var g = C.curve.levelEnemyGrowth || 1;
+    if (g === 1) return;
+    var newMul = 1 + (g - 1) * Math.max(0, G.player.lvl - 1);
+    var oldMul = 1 + (g - 1) * Math.max(0, G.player.lvl - 2);
+    var ratio = oldMul > 0 ? newMul / oldMul : 1;
+    G.enemies.forEach(function (e) {
+      if (e.dead) return;
+      e.maxhp *= ratio; e.hp *= ratio; e.spd *= ratio; e.def = (e.def || 1) * ratio;
+    });
+  }
   function collectLevelUps() {
     while (G.player.xp >= G.player.xpv) {
       G.player.xp -= G.player.xpv; G.player.lvl++; G.player.xpv = xpNeed(G.player.lvl);
       G.player.maxhp += 10; G.player.hp = Math.min(G.player.maxhp, G.player.hp + 14); G.pendingLevelUps++;
+      scaleEnemiesOnLevelUp();
     }
   }
   function addExperience(amount) { G.player.xp += amount; collectLevelUps(); }
@@ -404,7 +425,10 @@
   function update(dt) {
     if (G.state !== 'playing' || G.paused) return;
     G.time += dt * 1000; G.spawnTimer -= dt;
-    if (G.spawnTimer <= 0 && G.waveSpawned < waveConfig().kills) { spawnForWave(); G.spawnTimer = waveConfig().interval * (0.8 + Math.random() * 0.4) * (G.waveIndex < (C.curve.openingReliefWaves || 1) ? (C.curve.openingRelief || 1) : 1); }
+    if (G.spawnTimer <= 0 && G.waveSpawned < waveConfig().kills) {
+      var group = spawnBatch();
+      G.spawnTimer = waveConfig().interval * C.spawnGroupTimeFactor * (0.8 + Math.random() * 0.4) * (G.waveIndex < (C.curve.openingReliefWaves || 1) ? (C.curve.openingRelief || 1) : 1);
+    }
     /* 本波最后一只怪已出场 → 倒计时接下一波，全程不打断 */
     if (waveSpawnComplete()) { if (!isFinalWave()) { G.waveLead -= dt; if (G.waveLead <= 0) nextWave(); } }
     else G.waveLead = C.waveLeadSeconds;

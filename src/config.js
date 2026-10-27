@@ -2,10 +2,9 @@
 (function (root) {
   var PM = root.PixelMow = root.PixelMow || {};
 
-  /* 波次数量规则（全局统一，关卡只改怪物组合与刷怪节奏）：
-     每波地板 50 只；第 1-3 波 50、第 4-6 波 60、第 7-9 波 80；
-     第 10 波 100 只小怪 + 1 只首领（首领占用该波最后一次刷怪名额，故为 101）。 */
-  var WAVE_KILLS = [50, 50, 50, 60, 60, 60, 80, 80, 80, 101];
+  /* 波次数量规则：每波 200 起，逐波递增到末波 501；
+     末波 500 只小怪 + 1 只首领（首领占用最后一个刷怪名额）。 */
+  var WAVE_KILLS = [200, 220, 250, 280, 320, 360, 400, 440, 470, 501];
   var LAST_WAVE = WAVE_KILLS.length - 1;
 
   /* 出怪速度：每一波都比上一波快至少 10%（间隔 /1.1），越到后面越密 */
@@ -31,16 +30,20 @@
     height: 640,
     /* 波次衔接：不再插 3 秒全屏横幅，本波最后一只怪出场后倒计时 3s 直接接下一波 */
     waveLeadSeconds: 3,
-    /* 出怪速度每波至少 +10%（间隔等比缩小） */
+    /* 出怪速度每波至少 +10%（间隔等比缩小）；每次成组刷 13~18 只 */
     spawnSpeedPerWave: SPAWN_SPEED_PER_WAVE,
+    spawnGroup: 13,
+    spawnGroupRandom: 5,
+    spawnGroupTimeFactor: 1.0,
     /* 武器槽上限：占满后卡池不再发「获得新武器」的解锁卡，只强化已有武器 */
     weaponSlots: 5,
     waveCount: WAVE_KILLS.length,
     hero: { x: 240, y: 552 },
 
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
-     openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔，给零升级开局攒经验留口气，不改每波数量 */
-    curve: { waveHpGrowth: 1.035, waveDmgGrowth: 1.018, spawnGrowth: 0.0018, openingRelief: 1.0, openingReliefWaves: 0 },
+     openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔；
+     levelEnemyGrowth：主角每升 1 级，场上和之后刷出的怪防御/血量/速度线性 +5% */
+    curve: { waveHpGrowth: 1.035, waveDmgGrowth: 1.018, spawnGrowth: 0.0018, openingRelief: 1.0, openingReliefWaves: 0, levelEnemyGrowth: 1.05 },
     /* 控制上限：冰冻最长 2s（受抗性衰减），击退不能把怪推出屏幕 */
     control: { freezeCap: 2, knockMinY: -20 },
     /* 交战线：敌人必须先走进画面（y >= enterY）才会被锁定/溅射/传导/灼烧，

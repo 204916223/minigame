@@ -108,9 +108,28 @@ const cdBasic = G.weapons.basic.cd, cdFire = G.weapons.fire.cd;
 ok('火系与普攻独立冷却', cdBasic > 0 && cdFire > 0, 'basic=' + Math.round(cdBasic) + 'ms fire=' + Math.round(cdFire) + 'ms');
 
 /* 波次地板数量 */
-ok('每波最少 50 只', C.levels.every(l => l.waves.every(w => w.kills >= 50)),
-  '第 1 波 ' + C.levels[0].waves[0].kills + ' 只 · 每关小怪 ' +
-  C.levels[0].waves.reduce((sum, w) => sum + w.kills - (w.boss ? 1 : 0), 0) + ' 只');
+ok('每波数量 200~501', C.levels.every(l => l.waves.every(w => w.kills >= 200 && w.kills <= 501)),
+  '第 1 波 ' + C.levels[0].waves[0].kills + ' 只 · 末波 ' + C.levels[0].waves[9].kills + ' 只');
+ok('末波是 501 只并包含首领', C.levels.every(l => l.waves[9].kills === 501 && l.waves[9].boss),
+  C.levels.map(l => l.waves[9].kills).join(' / '));
+ok('每波刷怪数量递增到 501', C.levels[0].waves.every((w, i, a) => i === 0 || w.kills >= a[i - 1].kills),
+  C.levels[0].waves.map(w => w.kills).join(' / '));
+
+/* 成组刷怪：一次 13~18 只 */
+GP.resetRun(0); G.spawnTimer = 0; GP.update(1 / 60);
+ok('一次刷新 13~18 只', G.enemies.length >= 13 && G.enemies.length <= 18, 'count=' + G.enemies.length);
+
+/* 隐藏机制：主角升级后，场上怪物防御/血量/速度线性 +5% */
+GP.resetRun(0);
+const lvTarget = spawnAt('grunt', 240, 300);
+lvTarget.hp = 100; lvTarget.maxhp = 100; lvTarget.spd = 10; lvTarget.def = 1;
+G.player.xp = G.player.xpv;
+GP.grantExperience(0);
+ok('升级后场上怪物血量/防御/速度 +5%',
+  Math.abs(lvTarget.hp - 105) < 1e-6 && Math.abs(lvTarget.maxhp - 105) < 1e-6 &&
+  Math.abs(lvTarget.spd - 10.5) < 1e-6 && Math.abs(lvTarget.def - 1.05) < 1e-6,
+  'hp=' + lvTarget.hp + ' spd=' + lvTarget.spd + ' def=' + lvTarget.def);
+GP.resetRun(0);
 
 /* 满槽后卡池不再出解锁卡 */
 GP.resetRun(0);
