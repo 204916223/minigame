@@ -65,10 +65,12 @@
     if (G.damageFlash > 0) { c.fillStyle = 'rgba(255,40,60,' + G.damageFlash * .28 + ')'; c.fillRect(0, 0, C.width, C.height); }
   }
   function hud() { var c = ctx(), G = GP.state, top = Math.max(8, P.safeTop() + 6), w = GP.waveConfig();
-    bar(10, top, C.width - 20, 15, G.player.hp / G.player.maxhp, '#ff5d6c', 'HP ' + Math.ceil(G.player.hp) + ' / ' + G.player.maxhp);
+    var shield = Math.ceil(G.player.shield || 0);
+    bar(10, top, C.width - 20, 15, G.player.hp / G.player.maxhp, '#ff5d6c', 'HP ' + Math.ceil(G.player.hp) + ' / ' + G.player.maxhp + (shield > 0 ? '  盾 ' + shield : ''));
     bar(10, top + 18, C.width - 20, 9, G.player.xp / G.player.xpv, '#7cff6b', '');
     text('Lv.' + G.player.lvl, 10, top + 43, 12, '#ffd166', 'left', 'middle', 'bold');
-    if (G.player.damageMul > 1) text('★' + G.player.starBonus + ' 伤害 +' + Math.round((G.player.damageMul - 1) * 100) + '%', C.width - 55, top + 59, 10, '#ffd166', 'right', 'middle', 'bold');
+    text('金币 ' + G.coins, 10, top + 59, 10, '#ffd166', 'left', 'middle', 'bold');
+    if (G.player.damageMul > 1) text('伤害 +' + Math.round((G.player.damageMul - 1) * 100) + '%', C.width - 55, top + 59, 10, '#ffd166', 'right', 'middle', 'bold');
     var waveText = GP.isBossActive() ? '第 ' + (G.waveIndex + 1) + '/' + C.waveCount + ' 波  首领战' : '第 ' + (G.waveIndex + 1) + '/' + C.waveCount + ' 波  击杀 ' + G.waveKills + '/' + w.kills;
     text(waveText, 58, top + 43, 12, '#cdd6ee', 'left', 'middle', 'bold');
     text(formatTime(G.time), C.width - 55, top + 43, 12, '#8b95b3', 'right', 'middle');
@@ -100,7 +102,8 @@
   function menu() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.9)'; c.fillRect(0, 0, C.width, C.height);
     text('像素割草', C.width / 2, 155, 40, '#5ad1ff', 'center', 'middle', 'bold'); text('关卡制 · 每关十波 · 六系法术自由组合', C.width / 2, 220, 15, '#8b95b3', 'center', 'middle');
     text('守住阵地，保留更多生命赢取星星', C.width / 2, 248, 14, '#8b95b3', 'center', 'middle');
-    G.ui.start = { x: 150, y: 390, w: 180, h: 54 }; button(G.ui.start, '选 择 关 卡', '#33b3e6');
+    G.ui.start = { x: 150, y: 386, w: 180, h: 54 }; button(G.ui.start, '选 择 关 卡', '#33b3e6');
+    G.ui.shop = { x: 150, y: 454, w: 180, h: 46 }; button(G.ui.shop, '局 外 强 化', '#26324f', '#cdd6ee');
   }
   function drawStars(x, y, stars, flawless, size) { var c = ctx(), gap = size + 12, start = x - gap;
     for (var i = 0; i < 3; i++) { if (flawless) { c.strokeStyle = '#fff3a3'; c.lineWidth = 3; rounded(start + i * gap - size / 2 - 5, y - size / 2 - 5, size + 10, size + 10, 8); c.stroke(); }
@@ -115,6 +118,7 @@
     var starTotal = 0; (G.progress.stars || []).forEach(function (n) { starTotal += n || 0; });
     text('星辉：第 2 关起每颗星 +15% 伤害' + (starTotal ? '（当前 ★' + starTotal + ' → +' + (starTotal * 15) + '%）' : ''),
       C.width / 2, 592, 11, '#8b95b3', 'center', 'middle');
+    G.ui.shop = { x: 165, y: 514, w: 150, h: 38 }; button(G.ui.shop, '局外强化', '#26324f', '#cdd6ee');
   }
   var CAT_COLOR = { 强度: '#7cff6b', 数量: '#8fe9ff', 机制: '#ffd43b', 解锁: '#ff922b' };
   function weaponIcon(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.icon : '✦'; }
@@ -151,14 +155,42 @@
       canRefresh ? '#63e6be' : '#3d4a70', 'center', 'middle', 'bold');
     text('通过第 3 / 6 / 9 波各获得 1 次刷新机会', C.width / 2, 552, 11, '#5b6787', 'center', 'middle');
   }
+  function metaScreen() { var c = ctx(), G = GP.state; c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height);
+    text('局 外 强 化', C.width / 2, 52, 26, '#e8ecf7', 'center', 'middle', 'bold');
+    text('金币 ' + (G.progress.coins || 0), C.width / 2, 82, 18, '#ffd166', 'center', 'middle', 'bold');
+    var stars = GP.totalStars();
+    text('星辉 ★' + stars + ' · 攻击 +' + Math.round(stars * C.starBonus.perStar * 100) + '%', C.width / 2, 104, 12, '#ffd166', 'center', 'middle');
+    G.ui.metaRows = [];
+    C.meta.upgrades.forEach(function (upg, i) {
+      var y = 116 + i * 82, lv = (G.progress.meta && G.progress.meta[upg.id]) || 0;
+      var maxed = lv >= upg.max, cost = GP.metaCost(upg.id), affordable = !maxed && (G.progress.coins || 0) >= cost;
+      rounded(28, y, 424, 76, 12); c.fillStyle = '#16203a'; c.fill(); c.strokeStyle = '#33456f'; c.lineWidth = 1; c.stroke();
+      text(upg.name + '  Lv.' + lv + '/' + upg.max, 44, y + 22, 16, '#fff', 'left', 'middle', 'bold');
+      text(upg.desc, 44, y + 42, 12, '#aeb8d2', 'left', 'middle');
+      var cur = upg.id === 'atk' ? '+' + Math.round(lv * upg.per * 100) + '% 伤害'
+        : upg.id === 'hp' ? '+' + (lv * upg.per) + ' HP'
+        : upg.id === 'shield' ? '+' + (lv * upg.per) + ' 护盾'
+        : upg.id === 'def' ? Math.round(Math.min(upg.cap, lv * upg.per) * 100) + '% 减伤'
+        : '-' + Math.round(Math.min(upg.cap, lv * upg.per) * 100) + '% 冷却';
+      text('当前 ' + cur, 44, y + 62, 12, '#7cff6b', 'left', 'middle');
+      var btn = { x: 330, y: y + 28, w: 104, h: 32, id: upg.id };
+      G.ui.metaRows.push(btn);
+      rounded(btn.x, btn.y, btn.w, btn.h, 8); c.fillStyle = maxed ? '#20283b' : (affordable ? '#33b3e6' : '#26324f'); c.fill();
+      text(maxed ? '已满级' : (cost + ' 金币'), btn.x + btn.w / 2, btn.y + btn.h / 2 + 1, 12,
+        maxed ? '#596176' : (affordable ? '#05121c' : '#8b95b3'), 'center', 'middle', 'bold');
+    });
+    G.ui.metaBack = { x: 160, y: 548, w: 160, h: 42 }; button(G.ui.metaBack, '返 回', '#26324f', '#cdd6ee');
+  }
   function pause() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.74)'; c.fillRect(0, 0, C.width, C.height); text('已 暂 停', C.width / 2, 260, 28, '#e8ecf7', 'center', 'middle', 'bold');
     G.ui.resume = { x: 160, y: 315, w: 160, h: 50 }; button(G.ui.resume, '继 续', '#33b3e6');
     G.ui.pauseBack = { x: 160, y: 382, w: 160, h: 46 }; button(G.ui.pauseBack, '返回选关', '#26324f', '#cdd6ee'); }
   function over() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.88)'; c.fillRect(0, 0, C.width, C.height); text('阵 地 失 守', C.width / 2, 190, 34, '#ff5d6c', 'center', 'middle', 'bold');
     text('第 ' + (G.waveIndex + 1) + ' 波 · 击杀 ' + G.player.kills, C.width / 2, 255, 16, '#e8ecf7', 'center', 'middle');
+    text('本局金币 +' + (G.lastCoins || 0) + ' · 总计 ' + (G.progress.coins || 0), C.width / 2, 284, 13, '#ffd166', 'center', 'middle');
     G.ui.retry = { x: 150, y: 345, w: 180, h: 52 }; button(G.ui.retry, '重 试 本 关', '#e6495a', '#2a0308'); G.ui.back = { x: 170, y: 420, w: 140, h: 42 }; button(G.ui.back, '关卡选择', '#26324f', '#cdd6ee'); }
   function cleared() { var c = ctx(), G = GP.state, result = G.result; c.fillStyle = 'rgba(6,9,17,.92)'; c.fillRect(0, 0, C.width, C.height); text('关 卡 通 过', C.width / 2, 150, 34, '#7cff6b', 'center', 'middle', 'bold');
     drawStars(C.width / 2, 235, result.stars, result.flawless, 42); text('剩余生命 ' + Math.round(result.ratio * 100) + '%', C.width / 2, 300, 17, '#e8ecf7', 'center', 'middle');
+    text('本局金币 +' + (result.coins || 0) + ' · 总计 ' + (G.progress.coins || 0), C.width / 2, 360, 13, '#ffd166', 'center', 'middle');
     if (result.flawless) text('完美通关 · 满血三星边框', C.width / 2, 330, 14, '#fff3a3', 'center', 'middle', 'bold');
     else if (!result.stars) text('需要剩余生命大于 30% 才能解锁下一关', C.width / 2, 330, 13, '#ff8787', 'center', 'middle');
     G.ui.retry = { x: 75, y: 390, w: 150, h: 50 }; button(G.ui.retry, '再战一次', '#26324f', '#cdd6ee');
@@ -167,7 +199,7 @@
   }
   function formatTime(ms) { var seconds = Math.floor(ms / 1000); return ('0' + Math.floor(seconds / 60)).slice(-2) + ':' + ('0' + seconds % 60).slice(-2); }
   function render(dt) { var c = ctx(), G = GP.state; P.beginFrame(); background(dt);
-    if (G.state === 'menu') menu(); else if (G.state === 'levelselect') levelSelect(); else {
+    if (G.state === 'menu') menu(); else if (G.state === 'levelselect') levelSelect(); else if (G.state === 'meta') metaScreen(); else {
       c.save(); if (G.shake > 0) c.translate((Math.random() - .5) * G.shake, (Math.random() - .5) * G.shake); battlefield(); c.restore(); hud(); skills();
       if (G.toast.time > 0 && G.state === 'playing') text(G.toast.text, C.width / 2, Math.max(112, P.safeTop() + 96), 18, G.toast.color, 'center', 'middle', 'bold');
       if (G.state === 'levelup') levelUp(); else if (G.state === 'over') over(); else if (G.state === 'cleared') cleared(); else if (G.paused) pause();

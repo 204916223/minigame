@@ -40,7 +40,7 @@ function spawnAt(key, x, y) { G.enemies.push({ id: ++targetId, key: key, x: x, y
   color: '#fff', resist: C.enemyTypes[key].resist, sway: 0, phase: 0, flash: 0, freezeT: 0, poisonT: 0, poisonDps: 0,
   boss: !!C.enemyTypes[key].boss, dead: false }); return G.enemies[G.enemies.length - 1]; }
 
-['menu', 'levelselect', 'playing', 'levelup', 'over', 'cleared'].forEach(s => {
+['menu', 'levelselect', 'meta', 'playing', 'levelup', 'over', 'cleared'].forEach(s => {
   GP.resetRun(0); G.state = s;
   if (s === 'levelup') G.choices = [card('b_split'), card('f_unlock'), card('i_freeze')].map(c => ({ card: c, level: 0 }));
   if (s === 'cleared' || s === 'over') G.result = { stars: 2, flawless: false, ratio: 0.5 };
@@ -118,19 +118,26 @@ ok('每波刷怪数量递增到 501', C.levels[0].waves.every((w, i, a) => i ===
 /* 成组刷怪：数量随主角等级成长 */
 GP.resetRun(0); G.spawnTimer = 0; GP.update(1 / 60);
 ok('1 级一次刷新 3~5 只', G.enemies.length >= 3 && G.enemies.length <= 5, 'count=' + G.enemies.length);
+ok('同批怪不在同一行', new Set(G.enemies.map(e => Math.round(e.y))).size > 1,
+  G.enemies.map(e => Math.round(e.y)).join('/'));
 GP.resetRun(0); G.player.lvl = 20; G.spawnTimer = 0; GP.update(1 / 60);
 ok('20 级一次刷新 18~20 只', G.enemies.length >= 18 && G.enemies.length <= 20, 'count=' + G.enemies.length);
 
-/* 隐藏机制：主角升级后，场上怪物防御/血量/速度线性 +5% */
-GP.resetRun(0);
-const lvTarget = spawnAt('grunt', 240, 300);
-lvTarget.hp = 100; lvTarget.maxhp = 100; lvTarget.spd = 10; lvTarget.def = 1;
-G.player.xp = G.player.xpv;
-GP.grantExperience(0);
-ok('升级后场上怪物血量/防御/速度 +5%',
-  Math.abs(lvTarget.hp - 105) < 1e-6 && Math.abs(lvTarget.maxhp - 105) < 1e-6 &&
-  Math.abs(lvTarget.spd - 10.5) < 1e-6 && Math.abs(lvTarget.def - 1.05) < 1e-6,
-  'hp=' + lvTarget.hp + ' spd=' + lvTarget.spd + ' def=' + lvTarget.def);
+/* 隐藏机制：升级按当前波次阶段成长（1-3 血、4-6 防、7-10 速） */
+function phaseTarget(waveIndex) {
+  GP.resetRun(0); G.waveIndex = waveIndex;
+  const target = spawnAt('grunt', 240, 300);
+  target.hp = 100; target.maxhp = 100; target.spd = 10; target.def = 1;
+  G.player.xp = G.player.xpv; GP.grantExperience(0);
+  return target;
+}
+const phaseHp = phaseTarget(0), phaseDef = phaseTarget(3), phaseSpd = phaseTarget(6);
+ok('1-3 波升级只加血量', Math.abs(phaseHp.hp - 105) < 1e-6 && Math.abs(phaseHp.spd - 10) < 1e-6 && Math.abs(phaseHp.def - 1) < 1e-6,
+  'hp=' + phaseHp.hp + ' spd=' + phaseHp.spd + ' def=' + phaseHp.def);
+ok('4-6 波升级只加防御', Math.abs(phaseDef.hp - 100) < 1e-6 && Math.abs(phaseDef.spd - 10) < 1e-6 && Math.abs(phaseDef.def - 1.05) < 1e-6,
+  'hp=' + phaseDef.hp + ' spd=' + phaseDef.spd + ' def=' + phaseDef.def);
+ok('7-10 波升级只加速度', Math.abs(phaseSpd.hp - 100) < 1e-6 && Math.abs(phaseSpd.spd - 10.5) < 1e-6 && Math.abs(phaseSpd.def - 1) < 1e-6,
+  'hp=' + phaseSpd.hp + ' spd=' + phaseSpd.spd + ' def=' + phaseSpd.def);
 GP.resetRun(0);
 
 /* 满槽后卡池不再出解锁卡 */
@@ -192,6 +199,25 @@ ok('刷完 3s 后自动进第 2 波', G.waveIndex === 1, 'waveIndex=' + G.waveIn
 ok('衔接期间没有暂停状态', !sawPauseState && G.state === 'playing', 'state=' + G.state);
 ok('上一波残怪不被清掉', !leftover.dead || leftover.y > 300, '残怪 y=' + leftover.y.toFixed(0));
 ok('提示为小 toast 文案「第 2 波来临」', /第 2 波来临/.test(G.toast.text || ''), G.toast.text);
+
+/* 局外养成：金币、四类升级、开局生效 */
+G.progress.coins = 200; G.progress.meta = { atk: 5, hp: 5, shield: 3, def: 5, haste: 4 };
+GP.resetRun(0);
+ok('局外攻击加成生效', Math.abs(G.player.damageMul - 1.95) < 1e-9, 'damageMul=' + G.player.damageMul);
+ok('局外生命加成生效', G.player.maxhp === 515 && G.player.hp === 515, 'maxhp=' + G.player.maxhp);
+ok('局外护盾生效', G.player.shield === 150, 'shield=' + G.player.shield);
+ok('局外防御生效', Math.abs(G.player.defense - 0.50) < 1e-9, 'def=' + G.player.defense);
+ok('局外攻速对所有武器生效', Math.abs(G.weapons.basic.derived.cd - 1200) < 1e-6, 'basic cd=' + G.weapons.basic.derived.cd);
+const costHp = GP.metaCost('hp');
+ok('升级可扣金币并提升等级', GP.buyMeta('hp') === true && G.progress.meta.hp === 6 && G.progress.coins === 200 - costHp,
+  'cost=' + costHp + ' coins=' + G.progress.coins);
+G.progress.coins = 0;
+ok('金币不足不能升级', GP.buyMeta('hp') === false, 'coins=' + G.progress.coins);
+G.coins = 10; GP.bankCoins();
+ok('本局金币可结算到局外', G.progress.coins === 10 && G.lastCoins === 10 && G.coins === 0,
+  'coins=' + G.progress.coins + ' last=' + G.lastCoins);
+G.progress.meta = { atk: 0, hp: 0, shield: 0, def: 0, haste: 0 }; G.progress.coins = 0;
+GP.resetRun(0);
 
 /* 星辉：第 1 关无加成；第 2 关起每颗星 +15% 伤害 */
 G.progress.stars = [3, 0, 0, 0, 0];

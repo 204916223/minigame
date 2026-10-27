@@ -6,9 +6,19 @@
   function tap(x, y) {
     var tapAt = P.now(); if (tapAt - lastTapAt < 250) return; lastTapAt = tapAt;
     var G = GP.state; A.unlock();
-    if (G.state === 'menu') { if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
-    if (G.state === 'levelselect') { for (var l = 0; l < G.ui.levelButtons.length; l++) { var item = G.ui.levelButtons[l];
-      if (inside(x, y, item) && item.unlocked) { GP.resetRun(item.index); return; } } return; }
+    if (G.state === 'meta') {
+      var rows = G.ui.metaRows || [];
+      for (var r = 0; r < rows.length; r++) if (inside(x, y, rows[r])) { GP.buyMeta(rows[r].id); return; }
+      if (inside(x, y, G.ui.metaBack)) GP.leaveMeta();
+      return;
+    }
+    if (G.state === 'menu') { if (inside(x, y, G.ui.shop)) GP.openMeta(); else if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
+    if (G.state === 'levelselect') {
+      if (inside(x, y, G.ui.shop)) { GP.openMeta(); return; }
+      for (var l = 0; l < G.ui.levelButtons.length; l++) { var item = G.ui.levelButtons[l];
+        if (inside(x, y, item) && item.unlocked) { GP.resetRun(item.index); return; } }
+      return;
+    }
     if (G.state === 'levelup') {
       if (G.refreshes > 0 && inside(x, y, G.ui.refresh)) { GP.refreshChoices(); return; }
       for (var i = 0; i < G.ui.cards.length; i++) if (inside(x, y, G.ui.cards[i])) { GP.applyChoice(G.ui.cards[i].choice); return; }

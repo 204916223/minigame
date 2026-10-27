@@ -55,6 +55,17 @@
     /* 星辉：从第二关起，每颗已获得的星给全队伤害 +15%（加法叠加），
        用来奖励三星通关并托住后期难度 */
     starBonus: { perStar: 0.15, fromLevel: 1 },
+    /* 局外养成：每击杀 1 只怪 +1 金币，金币在局外升级（菜单/选关里的「局外强化」） */
+    meta: {
+      killCoins: 1,
+      upgrades: [
+        { id: 'atk', name: '攻击力', desc: '每级 +19% 全队伤害', base: 30, growth: 1.40, max: 20, per: 0.19, unit: '% 伤害' },
+        { id: 'hp', name: '生命上限', desc: '每级 +75 最大生命', base: 20, growth: 1.35, max: 20, per: 75, unit: 'HP' },
+        { id: 'shield', name: '护盾', desc: '每级 +50 开局护盾', base: 25, growth: 1.40, max: 20, per: 50, unit: '护盾' },
+        { id: 'def', name: '防御', desc: '每级 +10% 减伤（上限 60%）', base: 30, growth: 1.40, max: 20, per: 0.10, cap: 0.6, unit: '% 减伤' },
+        { id: 'haste', name: '攻击速度', desc: '每级 -10% 全技能冷却（上限 50%）', base: 35, growth: 1.40, max: 20, per: 0.10, cap: 0.5, unit: '% 冷却' }
+      ]
+    },
 
     palette: {
       '.': null, '0': '#1a1f2e', '1': '#38bdf8', '2': '#0ea5e9', '3': '#e2e8f0', '4': '#f472b6',

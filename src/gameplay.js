@@ -21,14 +21,18 @@
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
       waveIndex: 0, waveKills: 0, waveSpawned: 0, bossSpawned: false,
-      waveLead: 0, pendingLevelUps: 0, refreshes: 0,
+      waveLead: 0, pendingLevelUps: 0, refreshes: 0, coins: 0, lastCoins: 0, metaReturn: null,
       choices: [], progress: P.loadProgress(), result: null,
-      ui: { cards: [], levelButtons: [] }, toast: { text: '', color: '#fff', time: 0 }
+      ui: { cards: [], levelButtons: [], metaRows: [], metaBack: null, shop: null },
+      toast: { text: '', color: '#fff', time: 0 }
     };
   }
   var G = makeState();
   if (!G.progress.stars) G.progress.stars = [];
   if (!G.progress.flawless) G.progress.flawless = [];
+  if (!G.progress.coins) G.progress.coins = 0;
+  if (!G.progress.meta) G.progress.meta = { atk: 0, hp: 0, shield: 0, def: 0, haste: 0 };
+  C.meta.upgrades.forEach(function (u) { if (G.progress.meta[u.id] === undefined) G.progress.meta[u.id] = 0; });
 
   function levelConfig() { return C.levels[G.selectedLevel]; }
   function waveConfig() { return levelConfig().waves[G.waveIndex]; }
@@ -61,6 +65,7 @@
     });
     d.dmg = Math.max(0.05, d.dmg);
     d.dotDps = base.dotDps ? Math.max(0.02, d.dotDps * (d.dmg / base.dmgBase)) : 0;
+    d.cd = Math.max(60, (d.cd || 0) * (G.player.cdMul || 1));
     return d;
   }
   function recomputeDerived() {
@@ -72,12 +77,22 @@
     });
   }
   function resetRun(levelIndex) {
+    bankCoins();
     G.state = 'playing'; G.paused = false; G.last = P.now(); G.time = 0; G.selectedLevel = levelIndex;
     var totalStars = 0, starList = G.progress.stars || [];
     for (var si = 0; si < starList.length; si++) totalStars += starList[si] || 0;
     var starMul = levelIndex >= (C.starBonus.fromLevel || 1) ? 1 + (C.starBonus.perStar || 0) * totalStars : 1;
-    G.player = { hp: 140, maxhp: 140, lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2,
-      starBonus: totalStars, damageMul: starMul };
+    var meta = G.progress.meta || {};
+    var upgAtk = metaUpgrade('atk'), upgHp = metaUpgrade('hp'), upgShield = metaUpgrade('shield'), upgDef = metaUpgrade('def'), upgHaste = metaUpgrade('haste');
+    var atkMul = 1 + (meta.atk || 0) * (upgAtk ? upgAtk.per : 0.08);
+    var maxhp = 140 + (meta.hp || 0) * (upgHp ? upgHp.per : 40);
+    var shield = (meta.shield || 0) * (upgShield ? upgShield.per : 25);
+    var defPct = Math.min(upgDef ? upgDef.cap : 0.6, (meta.def || 0) * (upgDef ? upgDef.per : 0.05));
+    var hastePct = Math.min(upgHaste ? upgHaste.cap : 0.5, (meta.haste || 0) * (upgHaste ? upgHaste.per : 0.05));
+    G.player = { hp: maxhp, maxhp: maxhp, shield: shield, maxShield: shield, defense: defPct, cdMul: 1 - hastePct,
+      lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2,
+      starBonus: totalStars, damageMul: starMul * atkMul };
+    G.coins = 0; G.lastCoins = 0;
     G.cardLevels = {}; G.cardOrder = [];
     G.weapons = {}; WEAPONS.forEach(function (w) { G.weapons[w.id] = { owned: w.id === 'basic', cd: 0 }; });
     G.enemies = []; G.bullets = []; G.parts = []; G.booms = []; G.floaters = []; G.zones = []; G.arcs = [];
@@ -95,16 +110,22 @@
     return keys[0];
   }
   /* 怪物强度曲线：波次成长 × 波内逐只成长 × 关卡系数，第二只一定比第一只硬 */
-  function spawnEnemy(key) {
+  /* 每级成长按波次分阶段：1-3 波加血量，4-6 波加防御，7-10 波加速度 */
+  function enemyPhaseStat() { return G.waveIndex < 3 ? 'hp' : (G.waveIndex < 6 ? 'def' : 'speed'); }
+  function spawnEnemy(key, sx, sy) {
     var type = C.enemyTypes[key], level = levelConfig(), curve = C.curve;
     var waveMul = Math.pow(curve.waveHpGrowth, G.waveIndex), dmgWaveMul = Math.pow(curve.waveDmgGrowth, G.waveIndex);
     var idx = G.waveSpawned, spawnMul = 1 + curve.spawnGrowth * idx;
     var lvlMul = 1 + ((C.curve.levelEnemyGrowth || 1) - 1) * Math.max(0, G.player.lvl - 1);
-    var hp = type.hp * level.hpScale * (level.hpMul || 1) * lvlMul * waveMul * spawnMul;
-    G.enemies.push({ id: ++spawnEnemy.uid, key: key, x: 20 + Math.random() * (C.width - 40), y: -30,
-      hp: hp, maxhp: hp, spd: type.spd * level.speedScale * lvlMul, xp: type.xp,
+    var phase = enemyPhaseStat();
+    var hpMul = phase === 'hp' ? lvlMul : 1, defMul = phase === 'def' ? lvlMul : 1, spdMul = phase === 'speed' ? lvlMul : 1;
+    var hp = type.hp * level.hpScale * (level.hpMul || 1) * hpMul * waveMul * spawnMul;
+    var x = sx === undefined ? 20 + Math.random() * (C.width - 40) : Math.max(12, Math.min(C.width - 12, sx));
+    var y = sy === undefined ? -30 : sy;
+    G.enemies.push({ id: ++spawnEnemy.uid, key: key, x: x, y: y,
+      hp: hp, maxhp: hp, spd: type.spd * level.speedScale * spdMul, xp: type.xp,
       dmg: type.dmg * level.hpScale * dmgWaveMul * spawnMul,
-      r: type.r, cell: type.cell, spr: type.spr, color: type.color, def: lvlMul,
+      r: type.r, cell: type.cell, spr: type.spr, color: type.color, def: defMul,
       resist: type.resist, sway: type.sway ? 7 + Math.random() * 7 : 0, phase: Math.random() * Math.PI * 2,
       flash: 0, freezeT: 0, poisonT: 0, poisonDps: 0, boss: !!type.boss, dead: false });
     G.waveSpawned++;
@@ -118,15 +139,22 @@
     var group = Math.floor(groupBase) + Math.floor(Math.random() * ((C.spawnGroupRandom || 0) + 1));
     group = Math.min(C.spawnGroupMax || 99, Math.max(1, group));
     group = Math.min(group, w.kills - G.waveSpawned);
-    for (var i = 0; i < group; i++) spawnForWave();
+    /* 同一批怪按网格错开 x/y，避免全挤在同一行、互相重叠 */
+    var cols = Math.max(1, Math.ceil(Math.sqrt(group)));
+    for (var i = 0; i < group; i++) {
+      var col = i % cols, row = Math.floor(i / cols);
+      var x = (col + 0.5) * (C.width / cols) + (Math.random() - 0.5) * 16;
+      var y = -30 - row * 30 - Math.random() * 12;
+      spawnForWave(x, y);
+    }
     return group;
   }
-  function spawnForWave() {
+  function spawnForWave(x, y) {
     var w = waveConfig();
     if (G.waveSpawned >= w.kills) return;
     var needsBoss = !!w.boss && G.waveSpawned === w.kills - 1;
-    if (needsBoss) { spawnEnemy('boss'); G.bossSpawned = true; A.alarm(); toast('⚠ 首领来袭！', '#ff8787'); return; }
-    spawnEnemy(chooseWeighted(w.pool));
+    if (needsBoss) { spawnEnemy('boss', x, y); G.bossSpawned = true; A.alarm(); toast('⚠ 首领来袭！', '#ff8787'); return; }
+    spawnEnemy(chooseWeighted(w.pool), x, y);
   }
   function living(exclude) { return G.enemies.filter(function (e) { return !e.dead && e.hp > 0 && e !== exclude; }); }
   function nearestEnemies(count, exclude) {
@@ -259,16 +287,19 @@
     if (!bullet.child) spawnChildren(weaponDerived(bullet.weapon), enemy);
   }
   function weaponDerived(id) { var state = G.weapons[id]; return state ? state.derived : null; }
-  /* 隐藏机制：主角每升 1 级，场上和之后刷出的怪防御/血量/速度各 +5%（线性叠加） */
+  /* 隐藏机制：主角每升 1 级，按当前波次阶段给怪 +5%（线性）：1-3 波血、4-6 波防、7-10 波速 */
   function scaleEnemiesOnLevelUp() {
     var g = C.curve.levelEnemyGrowth || 1;
     if (g === 1) return;
     var newMul = 1 + (g - 1) * Math.max(0, G.player.lvl - 1);
     var oldMul = 1 + (g - 1) * Math.max(0, G.player.lvl - 2);
     var ratio = oldMul > 0 ? newMul / oldMul : 1;
+    var phase = enemyPhaseStat();
     G.enemies.forEach(function (e) {
       if (e.dead) return;
-      e.maxhp *= ratio; e.hp *= ratio; e.spd *= ratio; e.def = (e.def || 1) * ratio;
+      if (phase === 'hp') { e.maxhp *= ratio; e.hp *= ratio; }
+      else if (phase === 'def') { e.def = (e.def || 1) * ratio; }
+      else { e.spd *= ratio; }
     });
   }
   function collectLevelUps() {
@@ -282,7 +313,7 @@
   function grantExperience(amount) { addExperience(amount); settleCombatFlow(); }
   function killEnemy(enemy, source) {
     if (enemy.dead) return;
-    enemy.dead = true; G.player.kills++; G.waveKills++;
+    enemy.dead = true; G.player.kills++; G.waveKills++; G.coins += (C.meta.killCoins || 1);
     G.floaters.push({ x: enemy.x, y: enemy.y, text: '+' + enemy.xp, color: '#b8ff6b', age: 0, life: 0.9 });
     burst(enemy.x, enemy.y, enemy.color, enemy.boss ? 36 : 12, enemy.boss ? 300 : 150);
     G.shake = Math.max(G.shake, enemy.boss ? 13 : 3); A.hit();
@@ -362,15 +393,24 @@
   }
   function finishLevel() {
     var ratio = G.player.hp / G.player.maxhp, stars = calculateStars(ratio), flawless = ratio >= 0.999999;
-    G.result = { stars: stars, flawless: flawless, ratio: ratio };
+    bankCoins();
+    G.result = { stars: stars, flawless: flawless, ratio: ratio, coins: G.lastCoins };
     if (stars > (G.progress.stars[G.selectedLevel] || 0)) G.progress.stars[G.selectedLevel] = stars;
     if (flawless) G.progress.flawless[G.selectedLevel] = true;
     P.saveProgress(G.progress); G.state = 'cleared'; A.clear();
   }
   function hurtPlayer(damage) {
     if (G.state !== 'playing') return;
-    G.player.hp -= damage; G.damageFlash = 1; G.shake = Math.max(G.shake, 8); A.hurt();
-    if (G.player.hp <= 0) { G.player.hp = 0; G.state = 'over'; G.enemies = []; G.bullets = []; G.zones = []; A.fail(); }
+    var remaining = damage;
+    if (G.player.shield > 0) {
+      var absorbed = Math.min(G.player.shield, remaining);
+      G.player.shield -= absorbed; remaining -= absorbed;
+    }
+    if (remaining > 0) G.player.hp -= remaining * (1 - (G.player.defense || 0));
+    G.damageFlash = 1; G.shake = Math.max(G.shake, 8); A.hurt();
+    if (G.player.hp <= 0) {
+      G.player.hp = 0; bankCoins(); G.state = 'over'; G.enemies = []; G.bullets = []; G.zones = []; A.fail();
+    }
   }
   function updateZones(dt) {
     G.zones.forEach(function (z) {
@@ -450,7 +490,43 @@
     G.enemies = G.enemies.filter(function (e) { return !e.dead; });
     settleCombatFlow(); updateEffects(dt);
   }
-  function openLevelSelect() { G.state = 'levelselect'; }
+  function bankCoins() {
+    if (!G.coins) return;
+    G.lastCoins = G.coins;
+    G.progress.coins = (G.progress.coins || 0) + G.coins;
+    G.coins = 0;
+    P.saveProgress(G.progress);
+  }
+  function totalStars() {
+    var n = 0, list = G.progress.stars || [];
+    for (var i = 0; i < list.length; i++) n += list[i] || 0;
+    return n;
+  }
+  function metaUpgrade(id) { return C.meta.upgrades.filter(function (u) { return u.id === id; })[0]; }
+  function metaCost(id) {
+    var upg = metaUpgrade(id); if (!upg) return 0;
+    var lv = (G.progress.meta && G.progress.meta[id]) || 0;
+    return Math.round(upg.base * Math.pow(upg.growth, lv));
+  }
+  function buyMeta(id) {
+    var upg = metaUpgrade(id); if (!upg) return false;
+    var lv = (G.progress.meta && G.progress.meta[id]) || 0;
+    if (lv >= upg.max) return false;
+    var cost = metaCost(id);
+    if ((G.progress.coins || 0) < cost) return false;
+    G.progress.coins -= cost;
+    G.progress.meta[id] = lv + 1;
+    P.saveProgress(G.progress);
+    A.pick();
+    return true;
+  }
+  function openMeta() {
+    if (G.state === 'playing' || G.state === 'levelup' || G.state === 'over' || G.state === 'cleared') return;
+    G.metaReturn = G.state === 'meta' ? G.metaReturn : G.state;
+    G.state = 'meta';
+  }
+  function leaveMeta() { G.state = G.metaReturn === 'levelselect' ? 'levelselect' : 'menu'; G.metaReturn = null; }
+  function openLevelSelect() { bankCoins(); G.state = 'levelselect'; }
   function canContinue() { return G.result && G.result.stars > 0 && G.selectedLevel + 1 < C.levels.length; }
   function ownedCards() {
     return G.cardOrder.map(function (id) {
@@ -464,6 +540,7 @@
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
     ownedWeapons: ownedWeapons,
     recompute: recomputeDerived, refreshChoices: refreshChoices,
+    openMeta: openMeta, leaveMeta: leaveMeta, buyMeta: buyMeta, metaCost: metaCost, totalStars: totalStars, bankCoins: bankCoins,
     pause: function (value) { G.paused = value; G.last = P.now(); },
     toast: toast, dangerY: dangerY, waveConfig: waveConfig
   };
