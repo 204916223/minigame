@@ -37,6 +37,9 @@
     curve: { waveHpGrowth: 1.035, waveDmgGrowth: 1.018, spawnGrowth: 0.0018, openingRelief: 2.0, openingReliefWaves: 1 },
     /* 控制上限：冰冻最长 2s（受抗性衰减），击退不能把怪推出屏幕 */
     control: { freezeCap: 2, knockMinY: -20 },
+    /* 交战线：敌人必须先走进画面（y >= enterY）才会被锁定/溅射/传导/灼烧，
+       否则武器会在屏幕外就把怪杀掉，玩家看不到敌人出场 */
+    combat: { enterY: 8 },
 
     palette: {
       '.': null, '0': '#1a1f2e', '1': '#38bdf8', '2': '#0ea5e9', '3': '#e2e8f0', '4': '#f472b6',

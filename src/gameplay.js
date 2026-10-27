@@ -33,6 +33,8 @@
   function levelConfig() { return C.levels[G.selectedLevel]; }
   function waveConfig() { return levelConfig().waves[G.waveIndex]; }
   function dangerY() { return C.hero.y - 8; }
+  /* 交战线：敌人必须先走进画面（y >= combat.enterY）才可被锁定/命中，避免在屏幕外被清掉 */
+  function onField(e) { return e.y >= C.combat.enterY; }
   function toast(text, color) { G.toast = { text: text, color: color || '#fff', time: 1.6 }; }
 
   /* 每把武器独立结算：gain 与 tax 同时乘进 dmg/cd/freeze/knock/dotDur，
@@ -113,7 +115,7 @@
   }
   function living(exclude) { return G.enemies.filter(function (e) { return !e.dead && e.hp > 0 && e !== exclude; }); }
   function nearestEnemies(count, exclude) {
-    return living(exclude).filter(function (e) { return e.y < dangerY() + 40; })
+    return living(exclude).filter(function (e) { return onField(e) && e.y < dangerY() + 40; })
       .sort(function (a, b) { return b.y - a.y; }).slice(0, count);
   }
   function makeBullet(derived, target, damage, child) {
@@ -173,7 +175,7 @@
   }
   function explode(x, y, radius, damage, burn, dot) {
     G.booms.push({ x: x, y: y, r: radius, age: 0, life: 0.35 });
-    living().forEach(function (e) { var dx = e.x - x, dy = e.y - y;
+    living().forEach(function (e) { if (!onField(e)) return; var dx = e.x - x, dy = e.y - y;
       if (dx * dx + dy * dy >= radius * radius) return;
       if (dot && dot.dotDps) poisonEnemy(e, dot.dotDps, dot.dotDur);
       damageEnemy(e, damage, 'splash'); });
@@ -188,7 +190,7 @@
   /* 二次分裂 / 刃影：50% 伤害，且不再继续分裂 */
   function spawnChildren(derived, enemy) {
     var count = derived.child; if (!count) return;
-    var pool = living(enemy);
+    var pool = living(enemy).filter(onField);
     for (var i = 0; i < count; i++) {
       var target = pool.length ? pool[(Math.random() * pool.length) | 0] : enemy;
       var angle = Math.random() * Math.PI * 2, speed = derived.speed * 0.9;
@@ -219,7 +221,7 @@
     reached[current.id] = true;
     for (var i = 0; i < hops; i++) {
       var best = null, bestD = bullet.chainRange * bullet.chainRange;
-      living().forEach(function (e) { if (reached[e.id]) return; var dx = e.x - current.x, dy = e.y - current.y, d2 = dx * dx + dy * dy;
+      living().forEach(function (e) { if (reached[e.id] || !onField(e)) return; var dx = e.x - current.x, dy = e.y - current.y, d2 = dx * dx + dy * dy;
         if (d2 < bestD) { bestD = d2; best = e; } });
       if (!best) break;
       G.arcs.push({ x1: current.x, y1: current.y, x2: best.x, y2: best.y, age: 0, life: 0.18 });
@@ -336,7 +338,7 @@
     G.zones.forEach(function (z) {
       z.age += dt; z.timer -= dt;
       if (z.timer <= 0) { z.timer = z.tick;
-        living().forEach(function (e) { var dx = e.x - z.x, dy = e.y - z.y;
+        living().forEach(function (e) { if (!onField(e)) return; var dx = e.x - z.x, dy = e.y - z.y;
           if (dx * dx + dy * dy >= z.r * z.r) return;
           if (z.kind === 'burn') damageEnemy(e, z.dps * z.tick, 'burn');
           else poisonEnemy(e, z.dotDps, z.dotDur); }); }
@@ -349,7 +351,7 @@
       if (target && (target.dead || target.hp <= 0)) { b.target = null; target = null; }
       if (b.kind === 'lob') {
         if (!b.target) b.target = nearestEnemies(1)[0] || null;
-        if (b.target) { b.tx = b.target.x; b.ty = Math.max(-20, Math.min(dangerY(), b.target.y)); }
+        if (b.target) { b.tx = b.target.x; b.ty = Math.max(C.combat.enterY, Math.min(dangerY(), b.target.y)); }
         if (b.tx === undefined) { b.dead = true; return; }
         var ddx = b.tx - b.x, ddy = b.ty - b.y, dist = Math.sqrt(ddx * ddx + ddy * ddy);
         if (dist < 14) { explode(b.x, b.y, b.splash, b.damage, b.burn, { dotDps: b.dotDps, dotDur: b.dotDur }); b.dead = true; return; }
@@ -366,7 +368,7 @@
         if (b.kind === 'lob' && b.life <= 0) explode(b.x, b.y, b.splash, b.damage * 0.5, b.burn, { dotDps: b.dotDps, dotDur: b.dotDur });
         b.dead = true; return;
       }
-      for (var i = 0; i < G.enemies.length; i++) { var e = G.enemies[i]; if (e.dead || b.hitIds[e.id]) continue;
+      for (var i = 0; i < G.enemies.length; i++) { var e = G.enemies[i]; if (e.dead || b.hitIds[e.id] || !onField(e)) continue;
         var dx = e.x - b.x, dy = e.y - b.y, rr = e.r + b.r;
         if (dx * dx + dy * dy < rr * rr) {
           b.hitIds[e.id] = true; hitEnemy(e, b);
