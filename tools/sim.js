@@ -30,6 +30,21 @@ const POLICIES = {
   '乱选': { unlockFirst: 0, 强度: 0, 数量: 0, 机制: 0, 解锁: 0 }
 };
 function pickWith(policy, choices) {
+  /* 先选这次升级的方向：新技能还是强化 */
+  if (GP.state && GP.state.state === 'levelup') {
+    const canUnlock = GP.canLevelUpKind('unlock'), canUpgrade = GP.canLevelUpKind('upgrade');
+    if (canUnlock && canUpgrade) {
+      const unlockScore = (policy.unlockFirst || 0) + (policy['解锁'] || 0);
+      let upScore = 0;
+      ['强度', '数量', '机制'].forEach(cat => { if ((policy[cat] || 0) > upScore) upScore = policy[cat]; });
+      let prefer;
+      if (policy.maxWeapons && GP.ownedWeapons() >= policy.maxWeapons) prefer = false;
+      else if (!unlockScore && !upScore) prefer = Math.random() < 0.5;
+      else prefer = unlockScore >= upScore;
+      GP.setLevelUpKind(prefer ? 'unlock' : 'upgrade');
+    }
+  }
+  choices = GP.state.choices;
   let best = null, bestScore = -Infinity;
   choices.forEach(choice => {
     const card = choice.card;

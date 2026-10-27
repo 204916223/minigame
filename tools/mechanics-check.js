@@ -119,7 +119,7 @@ const unlockIds = C.cards.filter(c => c.unlock).map(c => c.id);
 function poolHasUnlock() {
   let found = false;
   for (let i = 0; i < 40; i++) {
-    G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; GP.update(1 / 60);
+    G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; G.levelUpKind = null; GP.update(1 / 60);
     if (G.choices.some(ch => ch.card.unlock)) found = true;
   }
   return found;
@@ -132,18 +132,29 @@ G.pendingLevelUps = 1; G.state = 'playing'; GP.update(1 / 60);
 ok('满槽时三选一全是强化卡', G.choices.length > 0 && !G.choices.some(ch => ch.card.unlock),
   G.choices.map(ch => ch.card.name).join(' / '));
 
-/* 交替规则：拿新技能的那次不混强化，下一次只给强化 */
-GP.resetRun(0); G.pendingLevelUps = 1; G.state = 'playing'; GP.update(1 / 60);
-ok('第 1 次升级只出「获得新技能」', G.choices.length > 0 && G.choices.every(ch => ch.card.unlock),
-  G.choices.map(ch => ch.card.name).join(' / '));
-GP.applyChoice(G.choices[0]);
-G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; GP.update(1 / 60);
-ok('紧接着的第 2 次升级只出强化卡', G.choices.length > 0 && !G.choices.some(ch => ch.card.unlock),
-  G.choices.map(ch => ch.card.name).join(' / '));
-GP.applyChoice(G.choices[0]);
-G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; GP.update(1 / 60);
-ok('第 3 次又可以出未拥有的新技能', G.choices.some(ch => ch.card.unlock) || GP.ownedWeapons() >= C.weaponSlots,
-  G.choices.map(ch => ch.card.name).join(' / '));
+/* 升级池分离：先选新技能或强化，再各出 3 张 */
+function choiceNames(list) { return list.map(ch => ch.card.name).join(' / '); }
+GP.resetRun(0); G.pendingLevelUps = 1; G.state = 'playing'; G.levelUpKind = null; GP.update(1 / 60);
+ok('升级可分别选择「新技能」与「强化」', GP.canLevelUpKind('unlock') && GP.canLevelUpKind('upgrade'),
+  'unlock=' + GP.canLevelUpKind('unlock') + ' upgrade=' + GP.canLevelUpKind('upgrade'));
+ok('默认新技能池只出解锁卡', G.choices.length > 0 && G.choices.every(ch => ch.card.unlock), choiceNames(G.choices));
+GP.setLevelUpKind('upgrade');
+ok('切到强化池只出强化卡', G.choices.length > 0 && !G.choices.some(ch => ch.card.unlock), choiceNames(G.choices));
+GP.setLevelUpKind('unlock');
+const pickedUnlock = G.choices[0];
+GP.applyChoice(pickedUnlock);
+ok('获得新技能本身不附带强化', G.cardOrder.length === 1 && G.cardOrder[0] === pickedUnlock.card.id &&
+  G.cardLevels[pickedUnlock.card.id] === 1 && GP.ownedWeapons() === 2, '已选 ' + pickedUnlock.card.name);
+G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; G.levelUpKind = null; GP.update(1 / 60);
+ok('拿到新技能后，下一次升级仍可再选新技能或强化', GP.canLevelUpKind('unlock') && GP.canLevelUpKind('upgrade'),
+  'unlock=' + GP.canLevelUpKind('unlock') + ' upgrade=' + GP.canLevelUpKind('upgrade'));
+/* 也可以这一级只拿强化，不拿新技能 */
+GP.resetRun(0); G.pendingLevelUps = 1; G.state = 'playing'; G.levelUpKind = null; GP.update(1 / 60);
+GP.setLevelUpKind('upgrade');
+const pickedUp = G.choices[0];
+GP.applyChoice(pickedUp);
+ok('可以不拿新技能、直接拿强化', G.cardLevels[pickedUp.card.id] === 1 && GP.ownedWeapons() === 1,
+  '已选 ' + pickedUp.card.name + ' · 武器 ' + GP.ownedWeapons());
 
 /* 波次衔接不打断：本波刷完 3s 后直接进下一波，且不清场 */
 GP.resetRun(0); G.waveSpawned = C.levels[0].waves[0].kills; G.pendingLevelUps = 0;

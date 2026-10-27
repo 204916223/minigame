@@ -21,7 +21,7 @@
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
       waveIndex: 0, waveKills: 0, waveSpawned: 0, bossSpawned: false,
-      waveLead: 0, pendingLevelUps: 0, lastPickWasUnlock: false,
+      waveLead: 0, pendingLevelUps: 0, levelUpKind: null,
       choices: [], progress: P.loadProgress(), result: null,
       ui: { cards: [], levelButtons: [] }, toast: { text: '', color: '#fff', time: 0 }
     };
@@ -82,7 +82,7 @@
     G.weapons = {}; WEAPONS.forEach(function (w) { G.weapons[w.id] = { owned: w.id === 'basic', cd: 0 }; });
     G.enemies = []; G.bullets = []; G.parts = []; G.booms = []; G.floaters = []; G.zones = []; G.arcs = [];
     G.spawnTimer = 0.7; G.shake = 0; G.damageFlash = 0; G.waveIndex = 0; G.waveKills = 0; G.waveSpawned = 0;
-    G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0; G.lastPickWasUnlock = false;
+    G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0; G.levelUpKind = null;
     G.choices = []; G.ui.cards = []; G.result = null; recomputeDerived();
     toast('第 1 波', '#8fe9ff');
   }
@@ -286,33 +286,53 @@
     for (var i = list.length - 1; i > 0; i--) { var j = (Math.random() * (i + 1)) | 0, tmp = list[i]; list[i] = list[j]; list[j] = tmp; }
     return list;
   }
-  /* 两阶段卡池：一次三选一里不混「获得技能」和「强化」。
-     上一次拿了新技能 → 这次只出强化；上一次拿了强化 → 这次可以出未拥有的技能 */
-  function buildChoices() {
-    var unlocks = [];
-    if (!G.lastPickWasUnlock && ownedWeapons() < C.weaponSlots) {
-      CARDS.forEach(function (card) {
-        if (card.unlock && !G.weapons[card.unlock].owned) unlocks.push({ card: card, level: 0 });
-      });
-    }
-    if (unlocks.length) return shuffled(unlocks).slice(0, 3);
-    var ups = [];
+  /* 升级两个独立卡池：新技能（解锁卡）和强化（已拥有武器的升级卡）。
+     每次升级由玩家先选方向，再在该方向的 3 张里选 1 张，互不混池。 */
+  function unownedUnlocks() {
+    var list = [];
+    if (ownedWeapons() >= C.weaponSlots) return list;
+    CARDS.forEach(function (card) {
+      if (card.unlock && !G.weapons[card.unlock].owned) list.push({ card: card, level: 0 });
+    });
+    return list;
+  }
+  function availableUpgrades() {
+    var list = [];
     CARDS.forEach(function (card) {
       if (card.unlock) return;
       var lv = G.cardLevels[card.id] || 0;
       if (lv >= card.max || !G.weapons[card.weapon].owned) return;
-      ups.push({ card: card, level: lv });
+      list.push({ card: card, level: lv });
     });
-    return shuffled(ups).slice(0, 3);
+    return list;
+  }
+  function canLevelUpKind(kind) {
+    if (kind === 'unlock') return unownedUnlocks().length > 0;
+    if (kind === 'upgrade') return availableUpgrades().length > 0;
+    return false;
+  }
+  function buildChoices(kind) {
+    return shuffled(kind === 'unlock' ? unownedUnlocks() : availableUpgrades()).slice(0, 3);
   }
   function openLevelUp() {
-    G.choices = buildChoices();
-    if (!G.choices.length) { G.pendingLevelUps = 0; return; }
+    var canUnlock = canLevelUpKind('unlock'), canUpgrade = canLevelUpKind('upgrade');
+    if (!canUnlock && !canUpgrade) { G.pendingLevelUps = 0; return; }
+    var kind = G.levelUpKind;
+    if (kind !== 'unlock' && kind !== 'upgrade') kind = canUnlock ? 'unlock' : 'upgrade';
+    if (!canLevelUpKind(kind)) kind = canUnlock ? 'unlock' : 'upgrade';
+    G.levelUpKind = kind;
+    G.choices = buildChoices(kind);
     G.state = 'levelup'; A.level();
+  }
+  function setLevelUpKind(kind) {
+    if (G.state !== 'levelup' || !canLevelUpKind(kind)) return;
+    G.levelUpKind = kind;
+    G.choices = buildChoices(kind);
+    G.ui.cards = [];
   }
   function applyChoice(choice) {
     var card = choice.card;
-    G.lastPickWasUnlock = !!card.unlock;
+    G.levelUpKind = card.unlock ? 'unlock' : 'upgrade';
     if (!G.cardLevels[card.id]) G.cardOrder.push(card.id);
     G.cardLevels[card.id] = (G.cardLevels[card.id] || 0) + 1;
     if (card.unlock) { G.weapons[card.unlock].owned = true; toast('获得 ' + card.name + '！', weaponBase(card.unlock).color); }
@@ -426,7 +446,7 @@
     isLevelUnlocked: isLevelUnlocked, canContinue: canContinue, calculateStars: calculateStars,
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
     ownedWeapons: ownedWeapons,
-    recompute: recomputeDerived,
+    recompute: recomputeDerived, canLevelUpKind: canLevelUpKind, setLevelUpKind: setLevelUpKind,
     pause: function (value) { G.paused = value; G.last = P.now(); },
     toast: toast, dangerY: dangerY, waveConfig: waveConfig
   };

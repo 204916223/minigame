@@ -9,7 +9,12 @@
     if (G.state === 'menu') { if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
     if (G.state === 'levelselect') { for (var l = 0; l < G.ui.levelButtons.length; l++) { var item = G.ui.levelButtons[l];
       if (inside(x, y, item) && item.unlocked) { GP.resetRun(item.index); return; } } return; }
-    if (G.state === 'levelup') { for (var i = 0; i < G.ui.cards.length; i++) if (inside(x, y, G.ui.cards[i])) { GP.applyChoice(G.ui.cards[i].choice); return; } return; }
+    if (G.state === 'levelup') {
+      var tabs = G.ui.tabs || [];
+      for (var t = 0; t < tabs.length; t++) if (inside(x, y, tabs[t])) { GP.setLevelUpKind(tabs[t].kind); return; }
+      for (var i = 0; i < G.ui.cards.length; i++) if (inside(x, y, G.ui.cards[i])) { GP.applyChoice(G.ui.cards[i].choice); return; }
+      return;
+    }
     if (G.state === 'over') { if (inside(x, y, G.ui.retry)) GP.resetRun(G.selectedLevel); else if (inside(x, y, G.ui.back)) GP.openLevelSelect(); return; }
     if (G.state === 'cleared') {
       if (inside(x, y, G.ui.retry)) GP.resetRun(G.selectedLevel);

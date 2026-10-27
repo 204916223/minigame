@@ -119,17 +119,30 @@
   var CAT_COLOR = { 强度: '#7cff6b', 数量: '#8fe9ff', 机制: '#ffd43b', 解锁: '#ff922b' };
   function weaponIcon(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.icon : '✦'; }
   function levelUp() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.84)'; c.fillRect(0, 0, C.width, C.height);
-    var phase = G.choices.length && G.choices[0].card.unlock;
-    text(phase ? '获 得 新 技 能' : '技 能 强 化', C.width / 2, 96, 22, '#ffd166', 'center', 'middle', 'bold');
-    text(phase ? '格子 ' + GP.ownedWeapons() + '/' + C.weaponSlots + ' · 先挑一把武器，强化要等下次升级'
-               : '数量与机制卡会牺牲伤害，看清代价再选', C.width / 2, 122, 12, '#8b95b3', 'center', 'middle');
+    var canUnlock = GP.canLevelUpKind('unlock'), canUpgrade = GP.canLevelUpKind('upgrade');
+    var kind = G.levelUpKind;
+    text('升 级', C.width / 2, 62, 22, '#ffd166', 'center', 'middle', 'bold');
+    G.ui.tabs = [];
+    var tabs = [];
+    if (canUnlock) tabs.push({ kind: 'unlock', label: '获得新技能' });
+    if (canUpgrade) tabs.push({ kind: 'upgrade', label: '技能强化' });
+    var tw = 170, th = 36, gap = 20, tx0 = (C.width - (tabs.length * tw + (tabs.length - 1) * gap)) / 2;
+    tabs.forEach(function (tab, i) {
+      var x = tx0 + i * (tw + gap), y = 84, active = kind === tab.kind;
+      G.ui.tabs.push({ x: x, y: y, w: tw, h: th, kind: tab.kind, enabled: true });
+      rounded(x, y, tw, th, 10); c.fillStyle = active ? '#33b3e6' : '#16203a'; c.fill();
+      c.strokeStyle = active ? '#8fe9ff' : '#33456f'; c.lineWidth = active ? 2 : 1; c.stroke();
+      text(tab.label, x + tw / 2, y + th / 2 + 1, 14, active ? '#05121c' : '#cdd6ee', 'center', 'middle', 'bold');
+    });
+    text(kind === 'unlock' ? '武器格 ' + GP.ownedWeapons() + '/' + C.weaponSlots + ' · 新技能会占一个格子'
+      : '数量与机制卡会牺牲伤害，看清代价再选', C.width / 2, 142, 12, '#8b95b3', 'center', 'middle');
     G.ui.cards = G.choices.map(function (choice, i) {
-      var rect = { x: 60, y: 145 + i * 104, w: 360, h: 92, choice: choice }, card = choice.card, next = choice.level + 1;
+      var rect = { x: 60, y: 162 + i * 104, w: 360, h: 92, choice: choice }, card = choice.card, next = choice.level + 1;
       rounded(rect.x, rect.y, rect.w, rect.h, 12); c.fillStyle = '#16203a'; c.fill();
       c.strokeStyle = card.color; c.lineWidth = 1.5; c.stroke();
       text(weaponIcon(card.weapon), rect.x + 30, rect.y + 34, 24, card.color, 'center', 'middle', 'bold');
-      var tag = card.cat, tagW = tag.length * 12 + 10;
-      rounded(rect.x + rect.w - tagW - 12, rect.y + 12, tagW, 20, 6); c.fillStyle = CAT_COLOR[tag] || '#33456f'; c.fill();
+      var tag = card.cat === '解锁' ? '新技能' : card.cat, tagW = tag.length * 12 + 10;
+      rounded(rect.x + rect.w - tagW - 12, rect.y + 12, tagW, 20, 6); c.fillStyle = CAT_COLOR[card.cat] || '#33456f'; c.fill();
       text(tag, rect.x + rect.w - tagW / 2 - 12, rect.y + 22, 12, '#0b1224', 'center', 'middle', 'bold');
       text(card.name + (card.max > 1 ? '  Lv.' + next : ''), rect.x + 58, rect.y + 26, 16, '#fff', 'left', 'middle', 'bold');
       text(card.desc(next), rect.x + 58, rect.y + 50, 12, '#aeb8d2', 'left', 'middle');
@@ -137,7 +150,7 @@
       else if (card.cat === '强度') text('无副作用', rect.x + 58, rect.y + 72, 12, '#7cff6b', 'left', 'middle');
       else text('解锁新武器', rect.x + 58, rect.y + 72, 12, '#ffb27d', 'left', 'middle');
       return rect; });
-    if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 470, 13, '#8fe9ff', 'center', 'middle');
+    if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 486, 13, '#8fe9ff', 'center', 'middle');
   }
   function pause() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.74)'; c.fillRect(0, 0, C.width, C.height); text('已 暂 停', C.width / 2, 260, 28, '#e8ecf7', 'center', 'middle', 'bold');
     G.ui.resume = { x: 160, y: 315, w: 160, h: 50 }; button(G.ui.resume, '继 续', '#33b3e6');
