@@ -8,19 +8,22 @@
   var WAVE_KILLS = [50, 50, 50, 60, 60, 60, 80, 80, 80, 101];
   var LAST_WAVE = WAVE_KILLS.length - 1;
 
-  /* tiers = [1-3 波, 4-6 波, 7-9 波, 第 10 波] 四档配置，展开成 10 个波次 */
+  /* 出怪速度：每一波都比上一波快至少 10%（间隔 /1.1），越到后面越密 */
+  var SPAWN_SPEED_PER_WAVE = 1.10;
+  /* tiers = [1-3 波, 4-6 波, 7-9 波, 第 10 波] 四档怪物组合，展开成 10 个波次 */
   function tierOf(waveIndex) { return waveIndex < 3 ? 0 : (waveIndex < 6 ? 1 : (waveIndex < 9 ? 2 : 3)); }
-  function buildWaves(tierPools, tierIntervals) {
+  function buildWaves(tierPools, baseInterval) {
     var waves = [];
     for (var i = 0; i < WAVE_KILLS.length; i++) {
       var t = tierOf(i);
-      waves.push({ kills: WAVE_KILLS[i], interval: tierIntervals[t], pool: tierPools[t], boss: i === LAST_WAVE });
+      waves.push({ kills: WAVE_KILLS[i], interval: baseInterval / Math.pow(SPAWN_SPEED_PER_WAVE, i),
+        pool: tierPools[t], boss: i === LAST_WAVE });
     }
     return waves;
   }
   /* hpMul：只放大怪物血量，不放大接触伤害；配合星辉把每关平均通过率压到 ~75% */
-  function buildLevel(name, hpScale, speedScale, hpMul, tierPools, tierIntervals) {
-    return { name: name, hpScale: hpScale, speedScale: speedScale, hpMul: hpMul, waves: buildWaves(tierPools, tierIntervals) };
+  function buildLevel(name, hpScale, speedScale, hpMul, tierPools, baseInterval) {
+    return { name: name, hpScale: hpScale, speedScale: speedScale, hpMul: hpMul, waves: buildWaves(tierPools, baseInterval) };
   }
 
   PM.Config = {
@@ -28,6 +31,8 @@
     height: 640,
     /* 波次衔接：不再插 3 秒全屏横幅，本波最后一只怪出场后倒计时 3s 直接接下一波 */
     waveLeadSeconds: 3,
+    /* 出怪速度每波至少 +10%（间隔等比缩小） */
+    spawnSpeedPerWave: SPAWN_SPEED_PER_WAVE,
     /* 武器槽上限：占满后卡池不再发「获得新武器」的解锁卡，只强化已有武器 */
     weaponSlots: 5,
     waveCount: WAVE_KILLS.length,
@@ -35,7 +40,7 @@
 
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
      openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔，给零升级开局攒经验留口气，不改每波数量 */
-    curve: { waveHpGrowth: 1.035, waveDmgGrowth: 1.018, spawnGrowth: 0.0018, openingRelief: 2.0, openingReliefWaves: 1 },
+    curve: { waveHpGrowth: 1.035, waveDmgGrowth: 1.018, spawnGrowth: 0.0018, openingRelief: 1.0, openingReliefWaves: 0 },
     /* 控制上限：冰冻最长 2s（受抗性衰减），击退不能把怪推出屏幕 */
     control: { freezeCap: 2, knockMinY: -20 },
     /* 交战线：敌人必须先走进画面（y >= enterY）才会被锁定/溅射/传导/灼烧，
@@ -169,31 +174,31 @@
          { grunt: 1, runner: 0.50, bat: 0.20 },
          { grunt: 1, runner: 0.55, bat: 0.40 },
          { grunt: 1, runner: 0.60, bat: 0.50, tank: 0.10 }],
-        [1.05, 0.95, 0.86, 0.80]),
+        1.603),
       buildLevel('暮色小径', 1.05, 1.03, 1.95,
         [{ grunt: 1, runner: 0.55, bat: 0.15 },
          { grunt: 0.80, runner: 0.55, bat: 0.40 },
          { grunt: 0.70, runner: 0.50, bat: 0.50, tank: 0.12 },
          { grunt: 0.60, runner: 0.55, bat: 0.55, tank: 0.20 }],
-        [0.96, 0.88, 0.80, 0.76]),
+        1.523),
       buildLevel('紫晶废墟', 1.10, 1.06, 2.08,
         [{ grunt: 0.80, runner: 0.60, bat: 0.30, tank: 0.10 },
          { grunt: 0.70, runner: 0.55, bat: 0.50, tank: 0.18 },
          { grunt: 0.60, runner: 0.50, bat: 0.55, tank: 0.28 },
          { grunt: 0.50, runner: 0.50, bat: 0.60, tank: 0.35 }],
-        [0.93, 0.85, 0.77, 0.73]),
+        1.463),
       buildLevel('熔岩裂谷', 1.12, 1.09, 2.04,
         [{ grunt: 0.50, runner: 0.60, bat: 0.60, tank: 0.08 },
          { grunt: 0.35, runner: 0.60, bat: 0.65, tank: 0.18 },
          { runner: 0.60, bat: 0.70, tank: 0.35 },
          { runner: 0.55, bat: 0.75, tank: 0.45 }],
-        [0.89, 0.81, 0.74, 0.70]),
+        1.403),
       buildLevel('终焉核心', 1.20, 1.12, 1.92,
         [{ grunt: 0.40, runner: 0.60, bat: 0.70, tank: 0.10 },
          { grunt: 0.20, runner: 0.60, bat: 0.75, tank: 0.25 },
          { runner: 0.55, bat: 0.80, tank: 0.50 },
          { runner: 0.50, bat: 0.85, tank: 0.60 }],
-        [0.85, 0.77, 0.70, 0.65])
+        1.303)
     ]
   };
 })(typeof GameGlobal !== 'undefined' ? GameGlobal : window);
