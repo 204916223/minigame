@@ -119,7 +119,7 @@ const unlockIds = C.cards.filter(c => c.unlock).map(c => c.id);
 function poolHasUnlock() {
   let found = false;
   for (let i = 0; i < 40; i++) {
-    G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; G.levelUpKind = null; GP.update(1 / 60);
+    G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; GP.update(1 / 60);
     if (G.choices.some(ch => ch.card.unlock)) found = true;
   }
   return found;
@@ -132,29 +132,35 @@ G.pendingLevelUps = 1; G.state = 'playing'; GP.update(1 / 60);
 ok('满槽时三选一全是强化卡', G.choices.length > 0 && !G.choices.some(ch => ch.card.unlock),
   G.choices.map(ch => ch.card.name).join(' / '));
 
-/* 升级池分离：先选新技能或强化，再各出 3 张 */
+/* 混合卡池：没选过技能时只出新技能；选过之后随机混出；刷新重抽 */
 function choiceNames(list) { return list.map(ch => ch.card.name).join(' / '); }
-GP.resetRun(0); G.pendingLevelUps = 1; G.state = 'playing'; G.levelUpKind = null; GP.update(1 / 60);
-ok('升级可分别选择「新技能」与「强化」', GP.canLevelUpKind('unlock') && GP.canLevelUpKind('upgrade'),
-  'unlock=' + GP.canLevelUpKind('unlock') + ' upgrade=' + GP.canLevelUpKind('upgrade'));
-ok('默认新技能池只出解锁卡', G.choices.length > 0 && G.choices.every(ch => ch.card.unlock), choiceNames(G.choices));
-GP.setLevelUpKind('upgrade');
-ok('切到强化池只出强化卡', G.choices.length > 0 && !G.choices.some(ch => ch.card.unlock), choiceNames(G.choices));
-GP.setLevelUpKind('unlock');
+GP.resetRun(0); G.pendingLevelUps = 1; G.state = 'playing'; GP.update(1 / 60);
+ok('没选过技能时只出新技能', G.choices.length > 0 && G.choices.every(ch => ch.card.unlock), choiceNames(G.choices));
 const pickedUnlock = G.choices[0];
 GP.applyChoice(pickedUnlock);
 ok('获得新技能本身不附带强化', G.cardOrder.length === 1 && G.cardOrder[0] === pickedUnlock.card.id &&
   G.cardLevels[pickedUnlock.card.id] === 1 && GP.ownedWeapons() === 2, '已选 ' + pickedUnlock.card.name);
-G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; G.levelUpKind = null; GP.update(1 / 60);
-ok('拿到新技能后，下一次升级仍可再选新技能或强化', GP.canLevelUpKind('unlock') && GP.canLevelUpKind('upgrade'),
-  'unlock=' + GP.canLevelUpKind('unlock') + ' upgrade=' + GP.canLevelUpKind('upgrade'));
-/* 也可以这一级只拿强化，不拿新技能 */
-GP.resetRun(0); G.pendingLevelUps = 1; G.state = 'playing'; G.levelUpKind = null; GP.update(1 / 60);
-GP.setLevelUpKind('upgrade');
-const pickedUp = G.choices[0];
-GP.applyChoice(pickedUp);
-ok('可以不拿新技能、直接拿强化', G.cardLevels[pickedUp.card.id] === 1 && GP.ownedWeapons() === 1,
-  '已选 ' + pickedUp.card.name + ' · 武器 ' + GP.ownedWeapons());
+G.pendingLevelUps = 1; G.choices = []; G.state = 'playing'; GP.update(1 / 60);
+ok('选过技能后仍是三选一', G.choices.length > 0, choiceNames(G.choices));
+ok('选过技能后卡池只含新技能或强化卡', G.choices.every(ch => ch.card.unlock || G.weapons[ch.card.weapon].owned), choiceNames(G.choices));
+
+/* 刷新：第 3/6/9 波后各 +1，可在升级界面重抽 */
+GP.resetRun(0); G.refreshes = 1; G.pendingLevelUps = 1; G.state = 'playing'; GP.update(1 / 60);
+ok('有刷新机会时可用', G.refreshes === 1 && GP.refreshChoices() === true, 'before=' + G.refreshes);
+ok('刷新消耗 1 次机会且仍有三选一', G.refreshes === 0 && G.choices.length > 0, 'after=' + G.refreshes);
+ok('没有刷新机会时不能刷', GP.refreshChoices() === false, 'refreshes=' + G.refreshes);
+
+/* 通过第 3、6、9 波后各获得 1 次刷新 */
+function runWaveTransition(waveIndex) {
+  GP.resetRun(0); G.state = 'playing'; G.waveIndex = waveIndex;
+  G.waveSpawned = C.levels[0].waves[waveIndex].kills; G.pendingLevelUps = 0; G.refreshes = 0; G.spawnTimer = 999;
+  for (let i = 0; i < 300; i++) { GP.update(1 / 60); if (G.state === 'levelup') GP.applyChoice(G.choices[0]); }
+  return { wave: G.waveIndex, refreshes: G.refreshes };
+}
+const w3 = runWaveTransition(2), w6 = runWaveTransition(5), w9 = runWaveTransition(8);
+ok('通过第 3 波获得 1 次刷新', w3.wave === 3 && w3.refreshes === 1, 'wave=' + w3.wave + ' refreshes=' + w3.refreshes);
+ok('通过第 6 波获得 1 次刷新', w6.wave === 6 && w6.refreshes === 1, 'wave=' + w6.wave + ' refreshes=' + w6.refreshes);
+ok('通过第 9 波获得 1 次刷新', w9.wave === 9 && w9.refreshes === 1, 'wave=' + w9.wave + ' refreshes=' + w9.refreshes);
 
 /* 波次衔接不打断：本波刷完 3s 后直接进下一波，且不清场 */
 GP.resetRun(0); G.waveSpawned = C.levels[0].waves[0].kills; G.pendingLevelUps = 0;

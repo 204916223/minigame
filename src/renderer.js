@@ -119,25 +119,16 @@
   var CAT_COLOR = { 强度: '#7cff6b', 数量: '#8fe9ff', 机制: '#ffd43b', 解锁: '#ff922b' };
   function weaponIcon(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.icon : '✦'; }
   function levelUp() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.84)'; c.fillRect(0, 0, C.width, C.height);
-    var canUnlock = GP.canLevelUpKind('unlock'), canUpgrade = GP.canLevelUpKind('upgrade');
-    var kind = G.levelUpKind;
-    text('升 级', C.width / 2, 62, 22, '#ffd166', 'center', 'middle', 'bold');
-    G.ui.tabs = [];
-    var tabs = [];
-    if (canUnlock) tabs.push({ kind: 'unlock', label: '获得新技能' });
-    if (canUpgrade) tabs.push({ kind: 'upgrade', label: '技能强化' });
-    var tw = 170, th = 36, gap = 20, tx0 = (C.width - (tabs.length * tw + (tabs.length - 1) * gap)) / 2;
-    tabs.forEach(function (tab, i) {
-      var x = tx0 + i * (tw + gap), y = 84, active = kind === tab.kind;
-      G.ui.tabs.push({ x: x, y: y, w: tw, h: th, kind: tab.kind, enabled: true });
-      rounded(x, y, tw, th, 10); c.fillStyle = active ? '#33b3e6' : '#16203a'; c.fill();
-      c.strokeStyle = active ? '#8fe9ff' : '#33456f'; c.lineWidth = active ? 2 : 1; c.stroke();
-      text(tab.label, x + tw / 2, y + th / 2 + 1, 14, active ? '#05121c' : '#cdd6ee', 'center', 'middle', 'bold');
-    });
-    text(kind === 'unlock' ? '武器格 ' + GP.ownedWeapons() + '/' + C.weaponSlots + ' · 新技能会占一个格子'
-      : '数量与机制卡会牺牲伤害，看清代价再选', C.width / 2, 142, 12, '#8b95b3', 'center', 'middle');
+    var hasUnlock = false, hasUpgrade = false;
+    G.choices.forEach(function (ch) { if (ch.card.unlock) hasUnlock = true; else hasUpgrade = true; });
+    var title = hasUnlock && hasUpgrade ? '新 技 能 / 强 化' : (hasUnlock ? '获 得 新 技 能' : '技 能 强 化');
+    var subtitle = hasUnlock && hasUpgrade ? '武器格 ' + GP.ownedWeapons() + '/' + C.weaponSlots + ' · 新技能与强化随机出现'
+      : (hasUnlock ? '武器格 ' + GP.ownedWeapons() + '/' + C.weaponSlots + ' · 先选一个新技能'
+        : '数量与机制卡会牺牲伤害，看清代价再选');
+    text(title, C.width / 2, 96, 22, '#ffd166', 'center', 'middle', 'bold');
+    text(subtitle, C.width / 2, 122, 12, '#8b95b3', 'center', 'middle');
     G.ui.cards = G.choices.map(function (choice, i) {
-      var rect = { x: 60, y: 162 + i * 104, w: 360, h: 92, choice: choice }, card = choice.card, next = choice.level + 1;
+      var rect = { x: 60, y: 145 + i * 104, w: 360, h: 92, choice: choice }, card = choice.card, next = choice.level + 1;
       rounded(rect.x, rect.y, rect.w, rect.h, 12); c.fillStyle = '#16203a'; c.fill();
       c.strokeStyle = card.color; c.lineWidth = 1.5; c.stroke();
       text(weaponIcon(card.weapon), rect.x + 30, rect.y + 34, 24, card.color, 'center', 'middle', 'bold');
@@ -150,7 +141,15 @@
       else if (card.cat === '强度') text('无副作用', rect.x + 58, rect.y + 72, 12, '#7cff6b', 'left', 'middle');
       else text('解锁新武器', rect.x + 58, rect.y + 72, 12, '#ffb27d', 'left', 'middle');
       return rect; });
-    if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 486, 13, '#8fe9ff', 'center', 'middle');
+    if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 470, 13, '#8fe9ff', 'center', 'middle');
+    var canRefresh = G.refreshes > 0;
+    G.ui.refresh = { x: C.width / 2 - 80, y: 496, w: 160, h: 38 };
+    rounded(G.ui.refresh.x, G.ui.refresh.y, G.ui.refresh.w, G.ui.refresh.h, 10);
+    c.fillStyle = canRefresh ? '#1b4b5f' : '#141c30'; c.fill();
+    c.strokeStyle = canRefresh ? '#63e6be' : '#2c3a60'; c.lineWidth = 1.5; c.stroke();
+    text(canRefresh ? '刷 新  ×' + G.refreshes : '刷 新  ×0', C.width / 2, G.ui.refresh.y + G.ui.refresh.h / 2 + 1, 15,
+      canRefresh ? '#63e6be' : '#3d4a70', 'center', 'middle', 'bold');
+    text('通过第 3 / 6 / 9 波各获得 1 次刷新机会', C.width / 2, 552, 11, '#5b6787', 'center', 'middle');
   }
   function pause() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.74)'; c.fillRect(0, 0, C.width, C.height); text('已 暂 停', C.width / 2, 260, 28, '#e8ecf7', 'center', 'middle', 'bold');
     G.ui.resume = { x: 160, y: 315, w: 160, h: 50 }; button(G.ui.resume, '继 续', '#33b3e6');

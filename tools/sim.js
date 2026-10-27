@@ -29,22 +29,7 @@ const POLICIES = {
   /* 乱选：四个分类同权重，用来验证「无脑点任何卡」不应稳过 */
   '乱选': { unlockFirst: 0, 强度: 0, 数量: 0, 机制: 0, 解锁: 0 }
 };
-function pickWith(policy, choices) {
-  /* 先选这次升级的方向：新技能还是强化 */
-  if (GP.state && GP.state.state === 'levelup') {
-    const canUnlock = GP.canLevelUpKind('unlock'), canUpgrade = GP.canLevelUpKind('upgrade');
-    if (canUnlock && canUpgrade) {
-      const unlockScore = (policy.unlockFirst || 0) + (policy['解锁'] || 0);
-      let upScore = 0;
-      ['强度', '数量', '机制'].forEach(cat => { if ((policy[cat] || 0) > upScore) upScore = policy[cat]; });
-      let prefer;
-      if (policy.maxWeapons && GP.ownedWeapons() >= policy.maxWeapons) prefer = false;
-      else if (!unlockScore && !upScore) prefer = Math.random() < 0.5;
-      else prefer = unlockScore >= upScore;
-      GP.setLevelUpKind(prefer ? 'unlock' : 'upgrade');
-    }
-  }
-  choices = GP.state.choices;
+function scoreChoices(policy, choices) {
   let best = null, bestScore = -Infinity;
   choices.forEach(choice => {
     const card = choice.card;
@@ -55,6 +40,25 @@ function pickWith(policy, choices) {
     score += Math.random() * 2;
     if (score > bestScore) { bestScore = score; best = choice; }
   });
+  return best;
+}
+function pickWith(policy, choices) {
+  let best = scoreChoices(policy, choices);
+  /* 池子里没有这次想要的方向时，用一次刷新重抽（模拟“没有想要的”操作） */
+  const unlockScore = (policy.unlockFirst || 0) + (policy['解锁'] || 0);
+  let upScore = 0;
+  ['强度', '数量', '机制'].forEach(cat => { if ((policy[cat] || 0) > upScore) upScore = policy[cat]; });
+  if (GP.state.refreshes > 0 && unlockScore + upScore > 0) {
+    let prefersUnlock = unlockScore > upScore;
+    if (policy.maxWeapons && GP.ownedWeapons() >= policy.maxWeapons) prefersUnlock = false;
+    const hasUnlock = choices.some(ch => ch.card.unlock);
+    const hasUpgrade = choices.some(ch => !ch.card.unlock);
+    const missing = prefersUnlock ? !hasUnlock : !hasUpgrade;
+    const canGet = prefersUnlock ? GP.ownedWeapons() < C.weaponSlots : hasUnlock;
+    if (missing && canGet && GP.refreshChoices()) {
+      best = scoreChoices(policy, GP.state.choices);
+    }
+  }
   return best;
 }
 
