@@ -137,6 +137,8 @@ GP.resetRun(0); G.spawnTimer = 0; GP.update(1 / 60);
 ok('1 级一次刷新 3~5 只', G.enemies.length >= 3 && G.enemies.length <= 5, 'count=' + G.enemies.length);
 ok('同批怪不在同一行', new Set(G.enemies.map(e => Math.round(e.y))).size > 1,
   G.enemies.map(e => Math.round(e.y)).join('/'));
+ok('同批怪不排成固定列', new Set(G.enemies.map(e => Math.round(e.x))).size > Math.ceil(Math.sqrt(G.enemies.length)),
+  'x 列数 ' + new Set(G.enemies.map(e => Math.round(e.x))).size + ' / 怪 ' + G.enemies.length);
 GP.resetRun(0); G.player.lvl = 20; G.spawnTimer = 0; GP.update(1 / 60);
 ok('20 级一次刷新 18~20 只', G.enemies.length >= 18 && G.enemies.length <= 20, 'count=' + G.enemies.length);
 

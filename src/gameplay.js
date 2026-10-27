@@ -139,12 +139,19 @@
     var group = Math.floor(groupBase) + Math.floor(Math.random() * ((C.spawnGroupRandom || 0) + 1));
     group = Math.min(C.spawnGroupMax || 99, Math.max(1, group));
     group = Math.min(group, w.kills - G.waveSpawned);
-    /* 同一批怪按网格错开 x/y，避免全挤在同一行、互相重叠 */
-    var cols = Math.max(1, Math.ceil(Math.sqrt(group)));
+    /* 同一批怪随机撒点：x/y 都散开，并做最小间距检查，避免固定列、重叠 */
+    var placed = [];
+    var ySpan = Math.min(110, 40 + group * 2.5);
     for (var i = 0; i < group; i++) {
-      var col = i % cols, row = Math.floor(i / cols);
-      var x = (col + 0.5) * (C.width / cols) + (Math.random() - 0.5) * 16;
-      var y = -30 - row * 30 - Math.random() * 12;
+      var x, y, tries = 0;
+      do {
+        x = 24 + Math.random() * (C.width - 48);
+        y = -30 - Math.random() * ySpan;
+        tries++;
+      } while (tries < 12 && placed.some(function (p) {
+        var dx = p.x - x, dy = p.y - y; return dx * dx + dy * dy < 26 * 26;
+      }));
+      placed.push({ x: x, y: y });
       spawnForWave(x, y);
     }
     return group;
