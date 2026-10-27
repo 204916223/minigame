@@ -34,7 +34,7 @@
 
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
      openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔，给零升级开局攒经验留口气，不改每波数量 */
-    curve: { waveHpGrowth: 1.08, waveDmgGrowth: 1.03, spawnGrowth: 0.003, openingRelief: 1.7, openingReliefWaves: 2 },
+    curve: { waveHpGrowth: 1.07, waveDmgGrowth: 1.035, spawnGrowth: 0.0025, openingRelief: 1.6, openingReliefWaves: 1 },
     /* 控制上限：冰冻最长 2s（受抗性衰减），击退不能把怪推出屏幕 */
     control: { freezeCap: 2, knockMinY: -20 },
 
@@ -69,23 +69,23 @@
        basic 快 / fire 高伤 / wind 击退 / thunder 传导 / frost 冰冻 / poison 持续伤害 */
     weapons: [
       { id: 'basic', name: '普通攻击', icon: '⊕', color: '#8fe9ff', kind: 'homing',
-        cdBase: 560, dmgBase: 1.15, countBase: 1, pierceBase: 0, speed: 470, turn: 11, r: 4,
+        cdBase: 2000, dmgBase: 4, countBase: 1, pierceBase: 0, speed: 470, turn: 11, r: 4,
         tag: '攻击速度快' },
       { id: 'fire', name: '火系法术', icon: '✹', color: '#ff922b', kind: 'lob',
-        cdBase: 2200, dmgBase: 6, countBase: 1, speed: 300, r: 6, splash: 66, splashRatio: 0.6,
+        cdBase: 3600, dmgBase: 22, countBase: 1, speed: 300, r: 7, splash: 72, splashRatio: 0.6,
         tag: '攻击力高，落点溅射' },
       { id: 'wind', name: '风系法术', icon: '≋', color: '#9be15d', kind: 'homing',
-        cdBase: 1150, dmgBase: 0.9, countBase: 2, speed: 420, turn: 6, r: 5, knock: 54,
+        cdBase: 2400, dmgBase: 2.6, countBase: 2, speed: 420, turn: 6, r: 5, knock: 54,
         tag: '伤害低，但把敌人吹退' },
       { id: 'thunder', name: '雷系法术', icon: '⚡', color: '#ffe066', kind: 'chain',
-        cdBase: 1650, dmgBase: 1.15, countBase: 1, speed: 560, turn: 12, r: 4,
+        cdBase: 3200, dmgBase: 3.4, countBase: 1, speed: 560, turn: 12, r: 5,
         chain: 10, chainRange: 130, chainDecay: 0.85, tag: '伤害低，可传导 10 个目标' },
       { id: 'frost', name: '冰系法术', icon: '❄', color: '#74c0fc', kind: 'homing',
-        cdBase: 1450, dmgBase: 0.8, countBase: 1, speed: 380, turn: 9, r: 5, freeze: 0.75,
+        cdBase: 3000, dmgBase: 2.4, countBase: 1, speed: 380, turn: 9, r: 5, freeze: 0.75,
         tag: '伤害低，可冻住敌人' },
       { id: 'poison', name: '毒系法术', icon: '☣', color: '#a9e34b', kind: 'homing',
-        cdBase: 1500, dmgBase: 0.45, countBase: 1, speed: 340, turn: 8, r: 5,
-        dotDps: 0.9, dotDur: 4, tag: '伤害低，命中后持续掉血' }
+        cdBase: 2800, dmgBase: 1.2, countBase: 1, speed: 340, turn: 8, r: 5,
+        dotDps: 1.6, dotDur: 4, tag: '伤害低，命中后持续掉血' }
     ],
 
     /* 卡池：cat = 强度（无副作用）/ 数量（掉伤害）/ 机制（掉伤害）/ 解锁（获得新武器）
@@ -98,10 +98,10 @@
       { id: 'b_power', weapon: 'basic', cat: '强度', name: '高爆弹药', color: '#ffd166', max: 5,
         gain: { dmg: 1.30 }, desc: function () { return '普攻伤害 +30%（乘法叠加）'; } },
       { id: 'b_rapid', weapon: 'basic', cat: '强度', name: '快速装填', color: '#a3bffa', max: 4,
-        gain: { cd: 0.86 }, desc: function (lv) { return '冷却 -14%（当前 ' + Math.round(560 * Math.pow(0.86, lv)) + 'ms）'; } },
+        gain: { cd: 0.86 }, desc: function (lv) { return '冷却 -14%（当前 ' + (2 * Math.pow(0.86, lv)).toFixed(2) + 's）'; } },
 
       { id: 'f_unlock', weapon: 'fire', cat: '解锁', name: '火系法术', color: '#ff922b', max: 1, unlock: 'fire',
-        desc: function () { return '与普攻同时发射，独立 2.2s 冷却，单发伤害高'; } },
+        desc: function () { return '与普攻同时发射，独立 3.6s 冷却，一发顶五发'; } },
       { id: 'f_power', weapon: 'fire', cat: '强度', name: '烈焰核心', color: '#ff922b', max: 4,
         gain: { dmg: 1.30 }, desc: function () { return '火球伤害 +30%（乘法叠加）'; } },
       { id: 'f_count', weapon: 'fire', cat: '数量', name: '双球齐出', color: '#ffa94d', max: 2,
@@ -162,31 +162,31 @@
          { grunt: 1, runner: 0.50, bat: 0.20 },
          { grunt: 1, runner: 0.55, bat: 0.40 },
          { grunt: 1, runner: 0.60, bat: 0.50, tank: 0.10 }],
-        [0.94, 0.86, 0.78, 0.74]),
+        [0.84, 0.76, 0.69, 0.65]),
       buildLevel('暮色小径', 1.05, 1.03,
         [{ grunt: 1, runner: 0.55, bat: 0.15 },
          { grunt: 0.80, runner: 0.55, bat: 0.40 },
          { grunt: 0.70, runner: 0.50, bat: 0.50, tank: 0.12 },
          { grunt: 0.60, runner: 0.55, bat: 0.55, tank: 0.20 }],
-        [0.86, 0.80, 0.74, 0.70]),
+        [0.77, 0.71, 0.65, 0.62]),
       buildLevel('紫晶废墟', 1.10, 1.06,
         [{ grunt: 0.80, runner: 0.60, bat: 0.30, tank: 0.10 },
          { grunt: 0.70, runner: 0.55, bat: 0.50, tank: 0.18 },
          { grunt: 0.60, runner: 0.50, bat: 0.55, tank: 0.28 },
          { grunt: 0.50, runner: 0.50, bat: 0.60, tank: 0.35 }],
-        [0.82, 0.76, 0.70, 0.66]),
-      buildLevel('熔岩裂谷', 1.15, 1.09,
+        [0.74, 0.68, 0.62, 0.59]),
+      buildLevel('熔岩裂谷', 1.12, 1.09,
         [{ grunt: 0.50, runner: 0.60, bat: 0.60, tank: 0.08 },
          { grunt: 0.35, runner: 0.60, bat: 0.65, tank: 0.18 },
          { runner: 0.60, bat: 0.70, tank: 0.35 },
          { runner: 0.55, bat: 0.75, tank: 0.45 }],
-        [0.78, 0.72, 0.66, 0.62]),
+        [0.71, 0.65, 0.59, 0.56]),
       buildLevel('终焉核心', 1.20, 1.12,
         [{ grunt: 0.40, runner: 0.60, bat: 0.70, tank: 0.10 },
          { grunt: 0.20, runner: 0.60, bat: 0.75, tank: 0.25 },
          { runner: 0.55, bat: 0.80, tank: 0.50 },
          { runner: 0.50, bat: 0.85, tank: 0.60 }],
-        [0.74, 0.67, 0.62, 0.58])
+        [0.68, 0.61, 0.56, 0.52])
     ]
   };
 })(typeof GameGlobal !== 'undefined' ? GameGlobal : window);
