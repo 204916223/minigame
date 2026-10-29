@@ -37,10 +37,11 @@
   cards.forEach(function (c) { cardMap[c.id] = c; });
   function eligible(state, id) {
     var s = skill(id), list = owned(state);
-    if (!s || list.some(function (v) { return v.id === id; }) || list.length >= C.loadout.slots) return false;
+    if (!s || list.some(function (v) { return v.id === id; })) return false;
+    if (state.mode !== 'endless' && list.length >= C.loadout.slots) return false;
     if (list.some(function (v) { return (v.excludes || []).indexOf(s.el) >= 0; })) return false;
     if ((s.excludes || []).some(function (el) { return list.some(function (v) { return v.el === el; }); })) return false;
-    if (s.mode !== 'fullscreen') return state.candidates.indexOf(id) >= 0;
+    if (s.mode !== 'fullscreen') return state.mode === 'endless' || state.candidates.indexOf(id) >= 0;
     return Object.keys(s.cond).every(function (el) { return list.filter(function (v) { return v.el === el; }).length >= s.cond[el]; });
   }
   function pool(state) {
@@ -77,7 +78,7 @@
   }
   function describe(card, level) {
     var s = skill(card.skill);
-    if (card.unlock) return s.persistent ? '常驻单层中毒，占 1 格；此后禁选风系' :
+    if (card.unlock) return s.persistent ? '常驻单层中毒；此后禁选风系' :
       '攻击 ' + C.power.base * s.ratio + ' · 冷却 ' + s.cd + 's（最短 ' + s.minCd + 's）· ' + (s.mode === 'fullscreen' ? '全屏' : (s.targets || 1) + ' 目标');
     var tag = card.tag, f = C.factions[tag], value = Math.min(level, card.max) * f.step;
     if (tag === 'split') return '命中后分裂 ' + (level + 1) + ' 个半伤子弹，最多一代';
@@ -87,7 +88,7 @@
   }
   function progress(raw) {
     var p = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-    var out = { version: 2, stars: [], flawless: [], coins: 0, meta: {}, candidates: [] };
+    var out = { version: 3, stars: [], flawless: [], coins: 0, meta: {}, candidates: [] };
     C.levels.forEach(function (_, i) {
       var n = Array.isArray(p.stars) ? Number(p.stars[i]) : 0;
       out.stars[i] = isFinite(n) ? Math.max(0, Math.min(3, Math.floor(n))) : 0;

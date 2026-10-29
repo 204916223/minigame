@@ -1,6 +1,7 @@
 "use strict";
 var fs = require('fs'), path = require('path'), child = require('child_process');
 function walk(dir) { return fs.readdirSync(dir, { withFileTypes: true }).reduce(function (all, entry) {
+  if (['node_modules', '.git', 'dist'].indexOf(entry.name) >= 0) return all;
   var file = path.join(dir, entry.name); return all.concat(entry.isDirectory() ? walk(file) : (/\.js$/.test(file) ? [file] : []));
 }, []); }
 var files = walk(path.resolve(__dirname, '..')).filter(function (file) { return file.indexOf('node_modules') < 0; });

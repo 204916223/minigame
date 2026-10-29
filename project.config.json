@@ -8,6 +8,8 @@
     { "type": "file", "value": "index.html" },
     { "type": "file", "value": "README.md" },
     { "type": "folder", "value": "tests" },
+    { "type": "folder", "value": "dist" },
+    { "type": "file", "value": "dist.sha256" },
     { "type": "file", "value": "package.json" }
   ]},
   "setting": { "es6": true, "enhance": true, "minified": true, "postcss": false, "urlCheck": false },

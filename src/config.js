@@ -37,6 +37,11 @@
     spawnGroupMax: 28,
     spawnGroupTimeFactor: 1.0,
     waveCount: WAVE_KILLS.length,
+    xpMultiplier: .75, // 普通关按原始经验的 75% 发放，无尽在此基础上再乘自身倍率。
+    endless: { unlockClears: 3, normals: 1000, miniBosses: 3, bosses: 2,
+      hpScale: 1, defScale: 1, speedScale: 1, hpGrowth: .15, defGrowth: .10, speedGrowth: .05, speedCap: 1.5,
+      coinMultiplier: .5, xpMultiplier: .5, interval: 1.5, minInterval: .5,
+      pool: { grunt: 1, runner: .5, bat: .3, tank: .1 } },
     enemyHpMultiplier: 2,
     hero: { x: 240, y: 552, hp: 400, defense: 100 },
 

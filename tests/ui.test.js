@@ -17,7 +17,7 @@ test('真实输入路径：候选取消/添加、冒险、返回配置、开局�
  tap(h.G.ui.start);assert.equal(h.G.state,'menu');assert.match(h.G.toast.text,/请先选满 7/);
  tap(selected);assert.equal(h.G.progress.candidates.length,before);
  tap(h.G.ui.start);assert.equal(h.G.state,'levelselect');tap(h.G.ui.menu);assert.equal(h.G.state,'menu');
- tap(h.G.ui.start);tap(h.G.ui.levelButtons[0]);assert.equal(h.G.state,'playing');assert.equal(h.GP.ownedSkills(),1);
+ tap(h.G.ui.start);tap(h.G.ui.levelButtons.find(r=>r.index===0));assert.equal(h.G.state,'playing');assert.equal(h.GP.ownedSkills(),1);
  h.GP.grantExperience(3);render();assert.equal(h.G.ui.cards.length,4);tap(h.G.ui.cards[0]);assert.equal(h.G.state,'playing');
 });
 test('不足七个候选时点击、空格和选关接口均不能进入；补满后恢复',()=>{
@@ -36,10 +36,10 @@ test('不足七个候选时点击、空格和选关接口均不能进入；补�
  }
  h.GP.openMenu();h.GP.openMeta();h.GP.leaveMeta();assert.equal(h.GP.openLevelSelect(),true);
 });
-test('微信 GameGlobal 和存储分支能加载新模块、迁移并渲染',()=>{
+test('微信 GameGlobal 和当前存储分支能加载新模块、清洗并渲染',()=>{
  const h=createGame({stars:[1],coins:77,meta:{hp:2}},1,true);
  assert.equal(h.PM.Platform.isWx,true);assert.equal(h.G.progress.coins,77);assert.equal(h.G.progress.meta.hp,2);
- assert.equal(h.storage.pixelMowProgress.version,2);assert.ok(h.storage['pixelMowProgress.beforeV2']);
+ assert.equal(h.storage['pixelMowProgress.v3'].version,3);assert.equal(h.storage['pixelMowProgress.beforeV2'],undefined);
  h.PM.Input.bind();h.PM.Renderer.render(1/60);h.GP.resetRun(0);h.frames(2);h.PM.Renderer.render(1/60);
  assert.equal(h.GP.ownedSkills(),1);
 });

@@ -15,7 +15,7 @@
 
   function makeState() {
     return {
-      state: 'menu', paused: false, last: 0, time: 0, selectedLevel: 0,
+      state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0,
       player: {}, skills: {}, cardLevels: {}, cardOrder: [],
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
@@ -34,8 +34,14 @@
   if (!G.progress.meta) G.progress.meta = { atk: 0, hp: 0, shield: 0, def: 0, haste: 0 };
   C.meta.upgrades.forEach(function (u) { if (G.progress.meta[u.id] === undefined) G.progress.meta[u.id] = 0; });
 
-  function levelConfig() { return C.levels[G.selectedLevel]; }
-  function waveConfig() { return levelConfig().waves[G.waveIndex]; }
+  function isEndless() { return G.mode === 'endless'; }
+  function levelConfig() { return isEndless() ? C.endless : C.levels[G.selectedLevel]; }
+  function waveConfig() {
+    if (!isEndless()) return levelConfig().waves[G.waveIndex];
+    var e = C.endless;
+    return { kills: e.normals + e.miniBosses + e.bosses, miniBosses: e.miniBosses, bosses: e.bosses, boss: true,
+      pool: e.pool, interval: Math.max(e.minInterval, e.interval / Math.pow(C.spawnSpeedPerWave, G.waveIndex)) };
+  }
   function dangerY() { return C.hero.y - 8; }
   function toast(text, color) { G.toast = { text: text, color: color || '#fff', time: 1.6 }; }
 
@@ -54,11 +60,12 @@
     P.saveProgress(G.progress); return true;
   }
   function resetRun(levelIndex) {
+    if (levelIndex === -1 && !isEndlessUnlocked()) { toast('前三关至少一星通关后解锁无尽模式'); return false; }
     bankCoins();
-    G.state = 'playing'; G.paused = false; G.last = P.now(); G.time = 0; G.selectedLevel = levelIndex;
+    G.state = 'playing'; G.mode = levelIndex === -1 ? 'endless' : 'campaign'; G.paused = false; G.last = P.now(); G.time = 0; G.selectedLevel = levelIndex; G.skillPage = 0;
     var totalStars = 0, starList = G.progress.stars || [];
     for (var si = 0; si < starList.length; si++) totalStars += starList[si] || 0;
-    var starMul = levelIndex >= (C.starBonus.fromLevel || 1) ? 1 + (C.starBonus.perStar || 0) * totalStars : 1;
+    var starMul = isEndless() || levelIndex >= (C.starBonus.fromLevel || 1) ? 1 + (C.starBonus.perStar || 0) * totalStars : 1;
     var meta = G.progress.meta || {};
     var upgAtk = metaUpgrade('atk'), upgHp = metaUpgrade('hp'), upgShield = metaUpgrade('shield'), upgDef = metaUpgrade('def'), upgHaste = metaUpgrade('haste');
     var atkMul = 1 + (meta.atk || 0) * upgAtk.per;
@@ -71,16 +78,19 @@
       starBonus: totalStars, damageBonus: (starMul - 1) + (atkMul - 1), damageMul: starMul + atkMul - 1, haste: hastePct };
     G.coins = 0; G.lastCoins = 0;
     G.cardLevels = {}; G.cardOrder = [];
-    G.candidates = G.progress.candidates.slice(); G.equippedOrder = [C.loadout.initial]; G.focusedSkill = C.loadout.initial; G.sweeps = [];
+    G.candidates = isEndless() ? SKILLS.filter(function (s) { return s.id !== C.loadout.initial; }).map(function (s) { return s.id; }) : G.progress.candidates.slice();
+    G.equippedOrder = [C.loadout.initial]; G.focusedSkill = C.loadout.initial; G.sweeps = [];
     G.skills = {}; SKILLS.forEach(function (w) { G.skills[w.id] = { owned: w.id === 'basic', cd: 0 }; });
     G.enemies = []; G.bullets = []; G.parts = []; G.booms = []; G.floaters = []; G.zones = []; G.arcs = []; G.telegraphs = [];
     G.spawnTimer = 0.7; G.shake = 0; G.damageFlash = 0; G.waveIndex = 0; G.waveKills = 0; G.waveSpawned = 0;
     G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0; G.refreshes = 0;
     G.choices = []; G.choicesCompleted = 0; G.choiceHistory = []; G.currentOfferElements = [];
     G.ui.cards = []; G.result = null; recomputeDerived();
-    toast('第 1 波', '#8fe9ff');
+    toast((isEndless() ? '无尽模式 · ' : '') + '第 1 波', '#8fe9ff'); return true;
   }
-  function isLevelUnlocked(index) { return index === 0 || (G.progress.stars[index - 1] || 0) > 0; }
+  function isEndlessUnlocked() { return G.progress.stars.slice(0, C.endless.unlockClears).length === C.endless.unlockClears &&
+    G.progress.stars.slice(0, C.endless.unlockClears).every(function (n) { return n > 0; }); }
+  function isLevelUnlocked(index) { return index === -1 ? isEndlessUnlocked() : index === 0 || (G.progress.stars[index - 1] || 0) > 0; }
   function chooseWeighted(pool) {
     var keys = Object.keys(pool), total = 0, i;
     for (i = 0; i < keys.length; i++) total += pool[keys[i]];
@@ -98,6 +108,11 @@
     var lvlMul = 1 + ((C.curve.levelEnemyGrowth || 1) - 1) * Math.max(0, G.player.lvl - 1);
     var phase = enemyPhaseStat();
     var hpMul = phase === 'hp' ? lvlMul : 1, defMul = phase === 'def' ? lvlMul : 1, spdMul = phase === 'speed' ? lvlMul : 1;
+    if (isEndless()) {
+      waveMul = 1 + C.endless.hpGrowth * G.waveIndex; defWaveMul = 1 + C.endless.defGrowth * G.waveIndex;
+      spawnMul = hpMul = defMul = 1;
+      spdMul = Math.min(C.endless.speedCap, 1 + C.endless.speedGrowth * G.waveIndex);
+    }
     var hp = type.hp * C.enemyHpMultiplier * level.hpScale * hpMul * waveMul * spawnMul;
     var x = sx === undefined ? 20 + Math.random() * (C.width - 40) : Math.max(12, Math.min(C.width - 12, sx));
     var y = sy === undefined ? -30 : sy;
@@ -138,9 +153,10 @@
   function spawnForWave(x, y) {
     var w = waveConfig();
     if (G.waveSpawned >= w.kills) return;
-    var needsBoss = !!w.boss && G.waveSpawned === w.kills - 1;
+    var bosses = w.bosses || (w.boss ? 1 : 0);
+    var needsBoss = bosses > 0 && G.waveSpawned >= w.kills - bosses;
     if (needsBoss) { spawnEnemy('boss', x, y); G.bossSpawned = true; A.alarm(); toast('⚠ 首领来袭！', '#ff8787'); return; }
-    if (G.waveSpawned >= w.kills - w.miniBosses - (w.boss ? 1 : 0)) {
+    if (G.waveSpawned >= w.kills - w.miniBosses - bosses) {
       spawnEnemy('miniboss', x, y); A.alarm(); toast('小首领来袭！', '#ff8787'); return;
     }
     spawnEnemy(chooseWeighted(w.pool), x, y);
@@ -165,6 +181,7 @@
   }
   /* 隐藏机制：主角每升 1 级，按当前波次阶段给怪 +5%（线性）：1-3 波血、4-6 波防、7-10 波速 */
   function scaleEnemiesOnLevelUp() {
+    if (isEndless()) return; // 无尽只按波次成长，避免角色升级突破速度上限。
     var g = C.curve.levelEnemyGrowth || 1;
     if (g === 1) return;
     var newMul = 1 + (g - 1) * Math.max(0, G.player.lvl - 1);
@@ -189,13 +206,15 @@
   function grantExperience(amount) { addExperience(amount); settleCombatFlow(); }
   function killEnemy(enemy, source) {
     if (enemy.dead) return;
-    enemy.dead = true; G.player.kills++; G.waveKills++; G.coins += (C.meta.killCoins || 1);
-    G.floaters.push({ x: enemy.x, y: enemy.y, text: '+' + enemy.xp, color: '#b8ff6b', age: 0, life: 0.9 });
+    enemy.dead = true; G.player.kills++; G.waveKills++;
+    G.coins += (C.meta.killCoins || 1) * (isEndless() ? C.endless.coinMultiplier : 1);
+    var xp = enemy.xp * C.xpMultiplier * (isEndless() ? C.endless.xpMultiplier : 1);
+    G.floaters.push({ x: enemy.x, y: enemy.y, text: '+' + xp, color: '#b8ff6b', age: 0, life: 0.9 });
     burst(enemy.x, enemy.y, enemy.color, enemy.boss ? 36 : 12, enemy.boss ? 300 : 150);
     G.shake = Math.max(G.shake, enemy.boss ? 13 : 3); A.hit();
-    addExperience(enemy.xp);
+    addExperience(xp);
   }
-  function isFinalWave() { return G.waveIndex >= levelConfig().waves.length - 1; }
+  function isFinalWave() { return !isEndless() && G.waveIndex >= levelConfig().waves.length - 1; }
   function waveSpawnComplete() { return G.waveSpawned >= waveConfig().kills; }
   function fieldClear() { return !G.enemies.some(function (e) { return !e.dead; }); }
   /* 末波刷完且场上残敌全部清除才结算；中途不清场。 */
@@ -257,6 +276,7 @@
       G.cardLevels[card.id] = (G.cardLevels[card.id] || 0) + 1;
     }
     recomputeDerived(); G.focusedSkill = card.skill;
+    G.skillPage = isEndless() ? Math.floor(G.equippedOrder.indexOf(card.skill) / C.loadout.slots) : 0;
     recordOffers();
     G.choiceHistory.push(G.currentOfferElements.slice());
     if (G.choiceHistory.length > 2) G.choiceHistory.shift();
@@ -267,7 +287,7 @@
     return true;
   }
   function nextWave() {
-    var completed = G.waveIndex + 1, gained = completed === 3 || completed === 6 || completed === 9;
+    var completed = G.waveIndex + 1, gained = isEndless() ? completed % 3 === 0 : completed === 3 || completed === 6 || completed === 9;
     G.waveIndex++; G.waveKills = 0; G.waveSpawned = 0; G.bossSpawned = false; G.spawnTimer = 0.2;
     G.waveLead = C.waveLeadSeconds; G.last = P.now();
     if (gained) G.refreshes++;
@@ -363,7 +383,8 @@
     G.state = 'meta';
   }
   function leaveMeta() { G.state = G.metaReturn === 'levelselect' ? 'levelselect' : 'menu'; G.metaReturn = null; }
-  function canSelectLevel() { return G.progress.candidates.length === C.loadout.candidates; }
+  function loadoutReady() { return G.progress.candidates.length === C.loadout.candidates; }
+  function canSelectLevel() { return loadoutReady() || isEndlessUnlocked(); }
   function openLevelSelect() {
     if (!canSelectLevel()) {
       toast('请先选满 7 个候选技能（当前 ' + G.progress.candidates.length + '/7）', '#ffd166');
@@ -371,7 +392,7 @@
     }
     bankCoins(); G.state = 'levelselect'; return true;
   }
-  function canContinue() { return G.result && G.result.stars > 0 && G.selectedLevel + 1 < C.levels.length; }
+  function canContinue() { return !isEndless() && G.result && G.result.stars > 0 && G.selectedLevel + 1 < C.levels.length; }
   function ownedCards() {
     return G.cardOrder.map(function (id) {
       var card = CARDS.filter(function (item) { return item.id === id; })[0];
@@ -380,13 +401,19 @@
   }
   function selectSkill(id) {
     if (G.state !== 'playing' || G.paused || !G.skills[id] || !G.skills[id].owned) return false;
-    G.focusedSkill = id; return true;
+    G.focusedSkill = id; G.skillPage = isEndless() ? Math.floor(G.equippedOrder.indexOf(id) / C.loadout.slots) : 0; return true;
+  }
+  function changeSkillPage(delta) {
+    if (!isEndless() || G.state !== 'playing' || G.paused) return false;
+    var next = G.skillPage + delta, pages = Math.ceil(G.equippedOrder.length / C.loadout.slots);
+    if (next < 0 || next >= pages) return false;
+    G.skillPage = next; G.focusedSkill = G.equippedOrder[next * C.loadout.slots]; return true;
   }
   PM.Gameplay = {
     state: G, combat: combat, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
-    isLevelUnlocked: isLevelUnlocked, canSelectLevel: canSelectLevel, canContinue: canContinue, calculateStars: calculateStars,
+    isLevelUnlocked: isLevelUnlocked, isEndless: isEndless, isEndlessUnlocked: isEndlessUnlocked, loadoutReady: loadoutReady, canSelectLevel: canSelectLevel, canContinue: canContinue, calculateStars: calculateStars,
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
-    ownedSkills: ownedSkills, selectSkill: selectSkill,
+    ownedSkills: ownedSkills, selectSkill: selectSkill, changeSkillPage: changeSkillPage,
     recompute: recomputeDerived, refreshChoices: refreshChoices,
     openMeta: openMeta, leaveMeta: leaveMeta, buyMeta: buyMeta, metaCost: metaCost, totalStars: totalStars, bankCoins: bankCoins,
     pause: function (value) { G.paused = value; G.last = P.now(); },

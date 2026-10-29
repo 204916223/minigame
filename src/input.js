@@ -41,6 +41,8 @@
         return;
       }
       if (inside(x, y, G.ui.pause)) { GP.pause(true); return; }
+      if (inside(x, y, G.ui.skillPrev)) { GP.changeSkillPage(-1); return; }
+      if (inside(x, y, G.ui.skillNext)) { GP.changeSkillPage(1); return; }
       var slots = G.ui.skillSlots || [];
       for (var slot = 0; slot < slots.length; slot++) if (inside(x, y, slots[slot])) { GP.selectSkill(slots[slot].id); return; }
     }

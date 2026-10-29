@@ -78,7 +78,7 @@ test('七种生成技的多重落点和连续施放独立保存，目标全部�
 });
 
 test('先爆发的生成技触发选卡时，后续预警保留，选卡和暂停后继续命中新目标', () => {
-  const h = setup(),first=h.target(240,220,{hp:500,maxhp:500,xp:3});
+  const h = setup(),first=h.target(240,220,{hp:500,maxhp:500,xp:4});
   h.GP.combat.cast(h.R.derive(h.G,'blackhole')); advance(h,.4);
   h.GP.combat.cast(h.R.derive(h.G,'meteor'));
   first.hp=50; // 施放后被其他技能打残，第一轮爆发提前触发升级。

@@ -3,6 +3,9 @@
   var PM = root.PixelMow = root.PixelMow || {};
   var C = PM.Config;
   var isWx = typeof wx !== 'undefined' && typeof wx.createCanvas === 'function';
+  // 本次清档使用独立空间，仍打开的旧版页面只能写旧键，不能覆盖新进度。
+  // 后续普通发布保持此键不变；再次改键意味着再次清档。
+  var SAVE_KEY = 'pixelMowProgress.v3';
   var canvas, ctx, viewW, viewH, scale = 1, offX = 0, offY = 0, inputX = 1, inputY = 1;
   var safeTop = 0, safeBottom = C.height;
 
@@ -43,28 +46,25 @@
   }
   function now() { return isWx ? Date.now() : performance.now(); }
   function loadProgress() {
+    ['pixelMowProgress', 'pixelMowProgress.beforeV2'].forEach(function (key) {
+      try {
+        if (isWx) wx.removeStorageSync(key);
+        else localStorage.removeItem(key);
+      } catch (e) { /* 删除失败也不读取旧档，新旧存档空间完全隔离。 */ }
+    });
+    var data;
     try {
-      var raw = isWx ? wx.getStorageSync('pixelMowProgress') : localStorage.getItem('pixelMowProgress');
-      if (!raw) return { stars: [] };
-      var data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      var normalized = PM.Rules.progress(data);
-      if (JSON.stringify(data) !== JSON.stringify(normalized)) {
-        try {
-          if (!data || data.version !== 2) {
-            var key = 'pixelMowProgress.beforeV2';
-            if (isWx) { if (!wx.getStorageSync(key)) wx.setStorageSync(key, data); }
-            else if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(data));
-          }
-          saveProgress(normalized);
-        } catch (writeError) { /* 存储不可写时，仍使用已成功读取的数据。 */ }
-      }
-      return normalized;
-    } catch (e) { return { stars: [] }; }
+      var raw = isWx ? wx.getStorageSync(SAVE_KEY) : localStorage.getItem(SAVE_KEY);
+      data = typeof raw === 'string' && raw ? JSON.parse(raw) : raw;
+    } catch (e) { data = null; }
+    var normalized = PM.Rules.progress(data);
+    if (JSON.stringify(data) !== JSON.stringify(normalized)) saveProgress(normalized);
+    return normalized;
   }
   function saveProgress(data) {
     try {
-      if (isWx) wx.setStorageSync('pixelMowProgress', data);
-      else localStorage.setItem('pixelMowProgress', JSON.stringify(data));
+      if (isWx) wx.setStorageSync(SAVE_KEY, data);
+      else localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     } catch (e) {}
   }
   PM.Platform = {

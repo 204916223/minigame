@@ -101,9 +101,9 @@ test('星级解锁和3/6/9波刷新', () => {
   assert.equal(h.GP.isLevelUnlocked(1),false);h.G.progress.stars[0]=1;assert.equal(h.GP.isLevelUnlocked(1),true);
   [2,5,8].forEach(w=>{h.GP.resetRun(0);h.G.waveIndex=w;h.G.waveSpawned=h.C.levels[0].waves[w].kills;h.G.waveLead=.001;h.GP.update(1/60);assert.equal(h.G.refreshes,1);});
 });
-test('旧存档清洗保留金币养成、候选去重、迁移幂等、局外才可编辑', () => {
+test('当前存档清洗保留金币养成、候选去重、清洗幂等、局外才可编辑', () => {
   const h=createGame({stars:[3],coins:123,meta:{atk:4},candidates:['windblade','windblade','unknown','basic','not-found','__proto__','constructor']});
-  assert.equal(h.G.progress.version,2);assert.equal(h.G.progress.coins,123);assert.equal(h.G.progress.meta.atk,4);
+  assert.equal(h.G.progress.version,3);assert.equal(h.G.progress.coins,123);assert.equal(h.G.progress.meta.atk,4);
   assert.equal(JSON.stringify(h.G.progress.candidates),'["windblade"]');assert.equal(JSON.stringify(h.R.progress(h.G.progress)),JSON.stringify(h.G.progress));
   assert.equal(h.GP.toggleCandidate('unknown'),false);assert.equal(h.GP.toggleCandidate('basic'),false);
   h.GP.toggleCandidate('laser');assert.ok(h.G.progress.candidates.includes('laser'));h.GP.resetRun(0);assert.equal(h.GP.toggleCandidate('laser'),false);
@@ -117,10 +117,4 @@ test('不可知域常驻单层，不出持续强化，但计入持续羁绊',()=
  const h=run();h.equip(['poisonbottle','miasma','unknown']);
  assert.equal(h.R.card('unknown:duration'),undefined);assert.equal(h.R.bonds(h.G).duration,3);
  assert.equal(h.GP.choicePool().some(ch=>ch.card.id==='unknown:duration'),false);
-});
-test('旧存档首次迁移保留备份，已迁移存档不重复备份',()=>{
- const old={stars:[2],coins:90,meta:{atk:3}};const h=createGame(old);
- assert.equal(h.storage['pixelMowProgress.beforeV2'],JSON.stringify(old));
- const saved=JSON.parse(h.storage.pixelMowProgress);assert.equal(saved.version,2);assert.equal(saved.coins,90);
- const fresh=createGame(saved);assert.equal(fresh.storage['pixelMowProgress.beforeV2'],undefined);
 });
