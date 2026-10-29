@@ -1,7 +1,6 @@
 "use strict";
 (function (root) {
   var PM = root.PixelMow = root.PixelMow || {}, C = PM.Config, P = PM.Platform, GP = PM.Gameplay, R = PM.Rules;
-  var gridOffset = 0;
   function ctx() { return P.ctx(); }
   function skillColor(id) { var w = C.skills.filter(function (item) { return item.id === id; })[0]; return w ? w.color : '#bff4ff'; }
   /* 每系一套画法：普攻细长弹、火系火球拖尾、风系弯月刃、冰系菱形冰晶、毒系滴落毒液（雷系为即时落雷，无弹丸） */
@@ -36,12 +35,39 @@
     for (var r = 0; r < pattern.length; r++) for (var col = 0; col < pattern[r].length; col++) { var key = pattern[r][col], color = palette[key];
       if (element && color && '03wks'.indexOf(key) < 0) color = 'GPR'.indexOf(key) >= 0 ? element.dark : element.color;
       if (color) { c.fillStyle = color; c.fillRect((ox + col * cell) | 0, (oy + r * cell) | 0, cell, cell); } } }
-  function background(dt) { var c = ctx(); c.fillStyle = '#070a12'; c.fillRect(-20, -20, C.width + 40, C.height + 40); gridOffset = (gridOffset + dt * 40) % 40;
-    c.strokeStyle = 'rgba(60,80,130,.10)'; c.lineWidth = 1;
-    for (var x = 0; x < C.width; x += 40) { c.beginPath(); c.moveTo(x + .5, 0); c.lineTo(x + .5, C.height); c.stroke(); }
-    for (var y = -40 + gridOffset; y < C.height; y += 40) { c.beginPath(); c.moveTo(0, y + .5); c.lineTo(C.width, y + .5); c.stroke(); } }
-  function battlefield() { var c = ctx(), G = GP.state, danger = GP.dangerY();
-    c.fillStyle = 'rgba(255,93,108,.18)'; c.fillRect(0, danger - 12, C.width, 14); c.fillStyle = 'rgba(255,93,108,.55)'; c.fillRect(0, danger, C.width, 2);
+  function background(dt) { var c = ctx(); c.fillStyle = '#05070d'; c.fillRect(0, 0, C.width, C.height); }
+  /* 世界层：只画镜头可见的网格；世界矩形外保持底色，读作地图边缘。 */
+  function worldGround(c, cam) {
+    var w = C.world.w, h = C.world.h, step = 48;
+    c.fillStyle = '#0a1020'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = 'rgba(60,80,130,.18)'; c.lineWidth = 1;
+    var x0 = Math.max(0, Math.floor(cam.x / step) * step), x1 = Math.min(w, cam.x + C.width);
+    var y0 = Math.max(0, Math.floor(cam.y / step) * step), y1 = Math.min(h, cam.y + C.height);
+    for (var x = x0; x <= x1; x += step) { c.beginPath(); c.moveTo(x + .5, Math.max(0, cam.y)); c.lineTo(x + .5, Math.min(h, cam.y + C.height)); c.stroke(); }
+    for (var y = y0; y <= y1; y += step) { c.beginPath(); c.moveTo(Math.max(0, cam.x), y + .5); c.lineTo(Math.min(w, cam.x + C.width), y + .5); c.stroke(); }
+    c.strokeStyle = 'rgba(90,209,255,.40)'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3); c.lineWidth = 1;
+  }
+  function inViewRect(e, cam, pad) {
+    return e.x >= cam.x - pad && e.x <= cam.x + C.width + pad && e.y >= cam.y - pad && e.y <= cam.y + C.height + pad;
+  }
+  /* 镜头外敌人的方向提示：最多 6 个，避免后期怪多时刷满屏幕边缘。 */
+  function edgeHints(c, cam) {
+    var G = GP.state, pad = 16, shown = 0, list = G.enemies;
+    for (var i = 0; i < list.length && shown < 6; i++) {
+      var e = list[i]; if (e.dead || inViewRect(e, cam, 6)) continue;
+      var sx = e.x - cam.x, sy = e.y - cam.y;
+      var px = Math.max(pad, Math.min(C.width - pad, sx)), py = Math.max(pad, Math.min(C.height - pad, sy));
+      c.save(); c.translate(px, py); c.rotate(Math.atan2(sy - py, sx - px));
+      c.globalAlpha = .8; c.fillStyle = e.color || '#ff8787';
+      c.beginPath(); c.moveTo(6, 0); c.lineTo(-4, 4.5); c.lineTo(-4, -4.5); c.closePath(); c.fill(); c.restore();
+      shown++;
+    }
+    c.globalAlpha = 1;
+  }
+  function battlefield() {
+    var c = ctx(), G = GP.state, cam = G.cam;
+    c.save(); c.translate(-cam.x, -cam.y);
+    worldGround(c, cam);
     G.zones.forEach(function (z) { var fade = Math.max(0, 1 - z.age / z.life), color = z.color || '#a9e34b';
       c.globalAlpha = fade * .26; c.fillStyle = color; c.beginPath(); c.arc(z.x, z.y, z.r, 0, Math.PI * 2); c.fill();
       c.globalAlpha = fade * .7; c.strokeStyle = color; c.lineWidth = 1; c.stroke(); }); c.globalAlpha = 1;
@@ -72,20 +98,36 @@
       for (var s = 1; s < steps; s++) { var t = s / steps;
         c.lineTo(a.x1 + (a.x2 - a.x1) * t + (Math.random() - .5) * 12, a.y1 + (a.y2 - a.y1) * t + (Math.random() - .5) * 12); }
       c.lineTo(a.x2, a.y2); c.stroke(); c.globalAlpha = 1; });
-    G.sweeps.forEach(function (v) { c.globalAlpha = (1 - v.age / v.life) * .45; c.fillStyle = v.color; c.fillRect(0, C.height * (1 - v.age / v.life), C.width, 42); }); c.globalAlpha = 1;
+    /* 全屏扫光在视口内自下而上扫过。 */
+    G.sweeps.forEach(function (v) { var k = 1 - v.age / v.life; c.globalAlpha = k * .45; c.fillStyle = v.color;
+      c.fillRect(cam.x, cam.y + C.height * k, C.width, 42); }); c.globalAlpha = 1;
     G.bullets.forEach(drawProjectile);
-    G.enemies.forEach(function (e) { sprite(C.sprites[e.spr], e.x, e.y, e.cell, C.elements[e.el]);
+    G.enemies.forEach(function (e) { if (!inViewRect(e, cam, 40)) return;
+      sprite(C.sprites[e.spr], e.x, e.y, e.cell, C.elements[e.el]);
       if (e.boss) text(e.miniboss ? '小首领' : '最终首领', e.x, e.y - e.r - 16, 10, e.color, 'center', 'middle', 'bold');
       // 状态只描边，保留身体元素色，避免冰冻/中毒时误认属性。
       if (e.freezeT > 0 || e.poisonT > 0) { c.globalAlpha = .85; c.strokeStyle = e.freezeT > 0 ? C.elements.ice.color : C.elements.poison.color; c.lineWidth = 1;
         c.strokeRect(e.x - e.r - 2, e.y - e.r - 2, e.r * 2 + 4, e.r * 2 + 4); c.globalAlpha = 1; }
       if (e.flash > 0) { c.globalAlpha = e.flash * .8; c.fillStyle = '#fff'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
       if (e.hp < e.maxhp) { var w = e.r * 2; c.fillStyle = '#0b1224'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w, 3); c.fillStyle = '#ff5d6c'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w * Math.max(0, e.hp / e.maxhp), 3); } });
-    sprite(C.sprites.hero, C.hero.x, C.hero.y, 4); c.strokeStyle = 'rgba(143,233,255,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(C.hero.x, C.hero.y - 14);
-    c.lineTo(C.hero.x + Math.cos(G.player.aim || -Math.PI / 2) * 14, C.hero.y - 14 + Math.sin(G.player.aim || -Math.PI / 2) * 14); c.stroke();
-    G.parts.forEach(function (p) { c.globalAlpha = 1 - p.age / p.life; c.fillStyle = p.color; c.fillRect(p.x | 0, p.y | 0, p.size, p.size); }); c.globalAlpha = 1;
+    var p = G.player, bob = Math.sin(p.walk || 0) * 1.5;
+    c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(p.x, p.y + 13, 13, 5, 0, 0, Math.PI * 2); c.fill();
+    sprite(C.sprites.hero, p.x, p.y + bob, 4);
+    c.strokeStyle = 'rgba(143,233,255,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(p.x, p.y - 14);
+    c.lineTo(p.x + Math.cos(p.aim || -Math.PI / 2) * 14, p.y - 14 + Math.sin(p.aim || -Math.PI / 2) * 14); c.stroke();
+    G.parts.forEach(function (q) { c.globalAlpha = 1 - q.age / q.life; c.fillStyle = q.color; c.fillRect(q.x | 0, q.y | 0, q.size, q.size); }); c.globalAlpha = 1;
     G.floaters.forEach(function (f) { c.globalAlpha = 1 - f.age / f.life; text(f.text, f.x, f.y, 12, f.color, 'center', 'middle', 'bold'); }); c.globalAlpha = 1;
+    c.restore();
     if (G.damageFlash > 0) { c.fillStyle = 'rgba(255,40,60,' + G.damageFlash * .28 + ')'; c.fillRect(0, 0, C.width, C.height); }
+  }
+  /* 触屏/拖拽摇杆：只在拖动时出现，不影响点击 UI。 */
+  function joystick() {
+    var c = ctx(), G = GP.state, joy = G.joy;
+    if (!joy || !joy.active) return;
+    c.strokeStyle = 'rgba(143,233,255,.45)'; c.lineWidth = 2;
+    c.beginPath(); c.arc(joy.ox, joy.oy, 46, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = 'rgba(143,233,255,.30)';
+    c.beginPath(); c.arc(joy.ox + joy.x * 46, joy.oy + joy.y * 46, 18, 0, Math.PI * 2); c.fill();
   }
   function hud() { var c = ctx(), G = GP.state, top = Math.max(8, P.safeTop() + 6), w = GP.waveConfig();
     var shield = Math.ceil(G.player.shield || 0);
@@ -108,7 +150,7 @@
     for (var i = 0; i < C.loadout.slots; i++) {
       var x = x0 + i * (size + gap), id = G.equippedOrder[offset + i], s = R.skill(id), state = s && G.skills[id];
       var focused = id === G.focusedSkill;
-      rounded(x, y, size, size, 9); c.fillStyle = focused ? '#1c2b3c' : '#0e1526'; c.fill(); c.strokeStyle = focused ? '#e8ecf7' : s ? s.color : '#2c3a60'; c.lineWidth = focused ? 2 : 1; c.stroke(); c.lineWidth = 1;
+      rounded(x, y, size, size, 9); c.fillStyle = focused ? 'rgba(28,43,60,.88)' : 'rgba(14,21,38,.84)'; c.fill(); c.strokeStyle = focused ? '#e8ecf7' : s ? s.color : '#2c3a60'; c.lineWidth = focused ? 2 : 1; c.stroke(); c.lineWidth = 1;
       if (!s) { text('空', x + size / 2, y + 28, 15, '#5b6787', 'center', 'middle'); continue; }
       G.ui.skillSlots.push({ x: x, y: y, w: size, h: size, id: id });
       text(s.icon, x + size / 2, y + 18, 19, s.color, 'center', 'middle');
@@ -295,7 +337,7 @@
   function render(dt) { var c = ctx(), G = GP.state; P.beginFrame(); background(dt);
     if (G.state !== 'playing') G.toast.time = Math.max(0, G.toast.time - dt);
     if (G.state === 'menu') menu(); else if (G.state === 'levelselect') levelSelect(); else if (G.state === 'meta') metaScreen(); else {
-      c.save(); if (G.shake > 0) c.translate((Math.random() - .5) * G.shake, (Math.random() - .5) * G.shake); battlefield(); c.restore(); hud(); skills();
+      c.save(); if (G.shake > 0) c.translate((Math.random() - .5) * G.shake, (Math.random() - .5) * G.shake); battlefield(); c.restore(); hud(); skills(); edgeHints(c, G.cam); joystick();
       var sidebarTop = Math.max(90, P.safeTop() + 84); bondSidebar(sidebarTop); enhancementSidebar(sidebarTop);
       if (G.toast.time > 0 && G.state === 'playing') text(G.toast.text, C.width / 2, Math.max(132, P.safeTop() + 116), 18, G.toast.color, 'center', 'middle', 'bold');
       if (G.state === 'levelup') levelUp(); else if (G.state === 'over') over(); else if (G.state === 'cleared') cleared(); else if (G.paused) pause();

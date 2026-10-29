@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {createGame}=require('./harness');
 function run(mode){const h=createGame({stars:[1,1,1]});h.GP.resetRun(mode==='endless'?-1:0);h.G.spawnTimer=1e8;h.G.skills.basic.cd=1e9;return h;}
 function totalXP(h){let xp=h.G.player.xp;for(let lvl=1;lvl<h.G.player.lvl;lvl++)xp+=h.GP.xpNeed(lvl);return xp;}
-function kill(h,xp){const e=h.target(240,220,{hp:1,maxhp:1,xp});h.GP.combat.hit(e,h.G.skills.basic.derived);return e;}
+function kill(h,xp){const e=h.at(0,-220,{hp:1,maxhp:1,xp});h.GP.combat.hit(e,h.G.skills.basic.derived);return e;}
 
 test('普通关经验75%，无尽再减半为37.5%，覆盖全部怪型和首领，浮字与实际到账一致',()=>{
  const base=run('campaign');

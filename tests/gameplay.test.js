@@ -91,8 +91,8 @@ test('连升逐次选择，刷新不消耗升级，拒绝旧选项', () => {
 });
 test('末波同帧清场直接结算、不弹升级', () => {
   const h=run();h.G.waveIndex=9;h.G.waveSpawned=1005;h.G.player.xp=h.G.player.xpv-1;
-  h.target(200,300,{hp:1,xp:1});h.target(205,300,{hp:1,xp:1});
-  h.GP.combat.area(200,300,{...h.G.skills.basic.derived,radius:50},false);h.GP.update(1/60);
+  const a=h.at(-40,-200,{hp:1,xp:1});h.at(-35,-200,{hp:1,xp:1});
+  h.GP.combat.area(a.x,a.y,{...h.G.skills.basic.derived,radius:50},false);h.GP.update(1/60);
   assert.equal(h.G.state,'cleared');assert.equal(h.G.pendingLevelUps,0);assert.equal(h.G.choices.length,0);assert.equal(h.G.player.kills,2);
 });
 test('星级解锁和3/6/9波刷新', () => {

@@ -53,13 +53,13 @@ test('无尽血防按波次增长，速度最多初始1.5倍，波内和角色�
 
 test('无尽金币减半，经验为普通关的一半且保留小数，首领也适用，结算和重试不重复给金币',()=>{
  const h=endless();
- for(const xp of [1,1,15,30]){const e=h.target(240,220,{hp:1,maxhp:1,xp});h.GP.combat.hit(e,h.G.skills.basic.derived);h.GP.combat.hit(e,h.G.skills.basic.derived);}
+ for(const xp of [1,1,15,30]){const e=h.at(0,-220,{hp:1,maxhp:1,xp});h.GP.combat.hit(e,h.G.skills.basic.derived);h.GP.combat.hit(e,h.G.skills.basic.derived);}
  assert.equal(h.G.coins,2);assert.equal(h.G.player.kills,4);assert.equal(totalXP(h),17.625);
  h.GP.bankCoins();h.GP.bankCoins();assert.equal(h.G.progress.coins,2);
- const e=h.target(240,220,{hp:1,xp:1});h.GP.combat.hit(e,h.G.skills.basic.derived);assert.equal(h.G.coins,.5);
+ const e=h.at(0,-220,{hp:1,xp:1});h.GP.combat.hit(e,h.G.skills.basic.derived);assert.equal(h.G.coins,.5);
  h.GP.openLevelSelect();assert.equal(h.G.progress.coins,2.5);h.GP.resetRun(-1);assert.equal(h.G.progress.coins,2.5);
  const restored=createGame(JSON.parse(h.storage['pixelMowProgress.v3']));assert.equal(restored.G.progress.coins,2.5);
- h.GP.resetRun(0);h.GP.combat.hit(h.target(240,220,{hp:1,xp:1}),h.G.skills.basic.derived);
+ h.GP.resetRun(0);h.GP.combat.hit(h.at(0,-220,{hp:1,xp:1}),h.G.skills.basic.derived);
  assert.equal(h.G.coins,1);assert.equal(totalXP(h),.75);assert.equal(h.G.mode,'campaign');
 });
 
@@ -95,12 +95,12 @@ test('无尽技能栏只分页显示，不限制后台攻击；新增技能自�
  assert.equal(h.G.ui.skillSlots.length,6);click(h,h.G.ui.skillNext);assert.equal(h.G.skillPage,1);
  assert.equal(h.G.ui.skillSlots[0].id,h.G.equippedOrder[6]);
  h.GP.selectSkill('flood');h.PM.Renderer.render(0);assert.ok(h.G.ui.skillSlots.some(s=>s.id==='flood'));
- h.target(240,220,{hp:1e6,maxhp:1e6});h.GP.update(1/60);
+ h.at(0,-220,{hp:1e6,maxhp:1e6});h.GP.update(1/60);
  h.G.equippedOrder.forEach(id=>assert.ok(h.G.skills[id].cd>0,id));
  const p=h.G.skillPage;h.GP.pause(true);assert.equal(h.GP.changeSkillPage(1),false);assert.equal(h.G.skillPage,p);
  h.PM.Renderer.render(0);click(h,h.G.ui.pauseBack);assert.equal(h.G.state,'levelselect');
  click(h,h.G.ui.levelButtons[0]);assert.equal(h.G.mode,'endless');assert.equal(h.GP.ownedSkills(),1);assert.equal(h.G.skillPage,0);
- h.target(240,h.GP.dangerY(),{hp:1e9});h.GP.update(1/60);assert.equal(h.G.state,'over');h.PM.Renderer.render(0);
+ h.target(h.G.player.x,h.G.player.y,{hp:1e9});h.GP.update(1/60);assert.equal(h.G.state,'over');h.PM.Renderer.render(0);
  click(h,h.G.ui.retry);assert.equal(h.G.mode,'endless');assert.equal(h.G.waveIndex,0);assert.equal(h.G.state,'playing');
 });
 

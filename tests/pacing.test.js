@@ -137,9 +137,9 @@ test('生成技先等待半秒再填充半秒，伤害、控制、区域都在�
 test('生成落点和攻击快照固定，移动脱离可躲避，原目标死亡仍在原地爆发', () => {
   const h = run(), moved = h.target(), d = {...h.R.derive(h.G, 'blackhole'), dmg:100};
   h.GP.combat.cast(d); moved.x = 450; moved.dead = true; d.dmg = 900;
-  const newcomer = h.target(240,300); h.GP.combat.update(1);
+  const newcomer = h.at(0,-200); h.GP.combat.update(1);
   assert.equal(moved.hp, moved.maxhp); assert.equal(newcomer.hp, newcomer.maxhp - 100);
-  assert.equal(h.G.booms[0].x, 240); assert.equal(h.G.booms[0].y, 300);
+  assert.equal(h.G.booms[0].x, h.G.player.x); assert.equal(h.G.booms[0].y, h.G.player.y - 200);
 });
 
 test('暂停和选卡冻结生成预警，失败、通关和重开清除未爆发效果', () => {
@@ -148,7 +148,7 @@ test('暂停和选卡冻结生成预警，失败、通关和重开清除未爆�
   h.GP.pause(true); h.GP.update(.6); assert.equal(h.G.telegraphs[0].age, 0);
   h.GP.pause(false); open(h); h.GP.update(.6); assert.equal(h.G.telegraphs[0].age, 0);
   takeUpgrade(h); h.GP.update(.6); assert.equal(h.G.telegraphs[0].age, .6);
-  t.y = h.GP.dangerY(); t.hp = 9999; h.GP.update(.01); assert.equal(h.G.state, 'over'); assert.equal(h.G.telegraphs.length, 0);
+  t.x = h.G.player.x; t.y = h.G.player.y; t.hp = 9999; h.GP.update(.01); assert.equal(h.G.state, 'over'); assert.equal(h.G.telegraphs.length, 0);
   h.GP.resetRun(0); h.target(); h.GP.combat.cast(h.R.derive(h.G, 'blackhole'));
   h.G.enemies = []; h.G.waveIndex = 9; h.G.waveSpawned = 1005; h.GP.update(.01);
   assert.equal(h.G.state, 'cleared'); assert.equal(h.G.telegraphs.length, 0);

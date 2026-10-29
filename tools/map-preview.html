@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>地图与移动预览</title>
+  <style>
+    html,body{margin:0;background:#05070d;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    #game{width:480px;height:640px;background:#05070d;image-rendering:pixelated}
+  </style>
+</head>
+<body>
+  <canvas id="game" width="480" height="640"></canvas>
+  <script src="../src/config.js"></script><script src="../src/rules.js"></script><script src="../src/combat.js"></script>
+  <script src="../src/platform.js"></script><script src="../src/audio.js"></script>
+  <script src="../src/gameplay.js"></script><script src="../src/renderer.js"></script><script src="../src/input.js"></script>
+  <script>
+    // 离线预览：不写存档，只跑固定帧数后截图，用于检查镜头、地图边界、刷怪与摇杆表现。
+    (function () {
+      var PM = window.PixelMow, P = PM.Platform, GP = PM.Gameplay, G = GP.state;
+      if (localStorage) localStorage.clear();
+      P.setupCanvas(); PM.Audio.unlock();
+      G.progress.candidates = ['laser', 'blackhole', 'chain', 'lightning', 'waterball', 'geyser', 'fireball'];
+      GP.resetRun(0);
+      ['windblade', 'fireball', 'blackhole'].forEach(function (id) { G.skills[id].owned = true; G.equippedOrder.push(id); });
+      GP.recompute();
+      for (var i = 0; i < 420; i++) {
+        GP.setMove(Math.cos(i / 47), Math.sin(i / 61));
+        GP.update(1 / 60);
+        if (G.state === 'levelup') { G.PendingXP = 0; GP.applyChoice(G.choices[0]); }
+      }
+      // 边界检查：把角色挪到世界左下角附近，再补一批怪，检查地图边界与镜头外箭头。
+      var W = PM.Config.world; G.player.x = 60; G.player.y = W.h - 60; GP.clampCamera();
+      G.enemies.length = 0; G.waveSpawned = 0; G.spawnTimer = 0; GP.update(1 / 60);
+      G.enemies.forEach(function (e) { e.spd = 0; });
+      GP.setMove(0, 0); G.joy = null;
+      PM.Renderer.render(1 / 60);
+    })();
+  </script>
+</body>
+</html>

@@ -16,7 +16,7 @@
   function makeState() {
     return {
       state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0,
-      player: {}, skills: {}, cardLevels: {}, cardOrder: [],
+      player: {}, move: { x: 0, y: 0 }, cam: { x: 0, y: 0 }, skills: {}, cardLevels: {}, cardOrder: [],
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
       waveIndex: 0, waveKills: 0, waveSpawned: 0, bossSpawned: false,
@@ -42,7 +42,12 @@
     return { kills: e.normals + e.miniBosses + e.bosses, miniBosses: e.miniBosses, bosses: e.bosses, boss: true,
       pool: e.pool, interval: Math.max(e.minInterval, e.interval / Math.pow(C.spawnSpeedPerWave, G.waveIndex)) };
   }
-  function dangerY() { return C.hero.y - 8; }
+  /* 镜头始终以角色为中心，并夹在世界边界内；视口即“交战线”，镜头外的敌人不可被攻击。 */
+  function clampCamera() {
+    G.cam.x = Math.max(0, Math.min(C.world.w - C.width, G.player.x - C.width / 2));
+    G.cam.y = Math.max(0, Math.min(C.world.h - C.height, G.player.y - C.height / 2));
+  }
+  function view() { return { x: G.cam.x, y: G.cam.y, w: C.width, h: C.height }; }
   function toast(text, color) { G.toast = { text: text, color: color || '#fff', time: 1.6 }; }
 
   function recomputeDerived() {
@@ -73,10 +78,10 @@
     var shield = (meta.shield || 0) * upgShield.per;
     var defense = C.hero.defense * (1 + (meta.def || 0) * upgDef.per);
     var hastePct = Math.min(upgHaste.cap, (meta.haste || 0) * upgHaste.per);
-    G.player = { hp: maxhp, maxhp: maxhp, shield: shield, maxShield: shield, defense: defense, cdMul: 1 - hastePct,
-      lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2,
-      starBonus: totalStars, damageBonus: (starMul - 1) + (atkMul - 1), damageMul: starMul + atkMul - 1, haste: hastePct };
-    G.coins = 0; G.lastCoins = 0;
+    G.player = { x: C.world.w / 2, y: C.world.h / 2, hp: maxhp, maxhp: maxhp, shield: shield, defense: defense,
+      lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2, walk: 0,
+      starBonus: totalStars, damageBonus: (starMul - 1) + (atkMul - 1), haste: hastePct };
+    G.move = { x: 0, y: 0 }; G.joy = null; clampCamera();    G.coins = 0; G.lastCoins = 0;
     G.cardLevels = {}; G.cardOrder = [];
     G.candidates = isEndless() ? SKILLS.filter(function (s) { return s.id !== C.loadout.initial; }).map(function (s) { return s.id; }) : G.progress.candidates.slice();
     G.equippedOrder = [C.loadout.initial]; G.focusedSkill = C.loadout.initial; G.sweeps = [];
@@ -114,8 +119,9 @@
       spdMul = Math.min(C.endless.speedCap, 1 + C.endless.speedGrowth * G.waveIndex);
     }
     var hp = type.hp * C.enemyHpMultiplier * level.hpScale * hpMul * waveMul * spawnMul;
-    var x = sx === undefined ? 20 + Math.random() * (C.width - 40) : Math.max(12, Math.min(C.width - 12, sx));
-    var y = sy === undefined ? -30 : sy;
+    /* 落点夹在世界内（不是屏幕内）：地图比视口大，屏幕坐标夹取会把整批怪挤到同一侧。 */
+    var x = sx === undefined ? C.spawnRing.margin + Math.random() * (C.world.w - C.spawnRing.margin * 2) : Math.max(12, Math.min(C.world.w - 12, sx));
+    var y = sy === undefined ? C.spawnRing.margin + Math.random() * (C.world.h - C.spawnRing.margin * 2) : Math.max(12, Math.min(C.world.h - 12, sy));
     var elements = Object.keys(C.elements), el = elements[(Math.random() * elements.length) | 0];
     G.enemies.push({ id: ++spawnEnemy.uid, key: key, x: x, y: y,
       hp: hp, maxhp: hp, spd: type.spd * level.speedScale * spdMul, xp: type.xp,
@@ -126,6 +132,21 @@
   }
   spawnEnemy.uid = 0;
   function hasBoss() { return G.enemies.some(function (e) { return e.boss && !e.dead; }); }
+  /* 视野外环形随机点：先求角色所在视口沿该角度的出屏距离，再按 1.04~1.4 倍外推到镜头外；
+     落点若出了世界边界就换一个角度，怪不会刷在地图墙外。 */
+  function ringPoint() {
+    var p = G.player, cam = G.cam, margin = C.spawnRing.margin;
+    for (var i = 0; i < 16; i++) {
+      var angle = Math.random() * Math.PI * 2, cos = Math.cos(angle), sin = Math.sin(angle);
+      var tx = Math.abs(cos) < 1e-6 ? Infinity : (cos > 0 ? (cam.x + C.width - p.x) / cos : (cam.x - p.x) / cos);
+      var ty = Math.abs(sin) < 1e-6 ? Infinity : (sin > 0 ? (cam.y + C.height - p.y) / sin : (cam.y - p.y) / sin);
+      var dist = Math.min(tx, ty) * (C.spawnRing.min + Math.random() * (C.spawnRing.max - C.spawnRing.min));
+      var x = p.x + cos * dist, y = p.y + sin * dist;
+      if (x >= margin && x <= C.world.w - margin && y >= margin && y <= C.world.h - margin) return { x: x, y: y };
+    }
+    return { x: Math.max(margin, Math.min(C.world.w - margin, p.x)),
+      y: Math.max(margin, Math.min(C.world.h - margin, p.y - C.height / 2 - 40)) };
+  }
   function spawnBatch() {
     var w = waveConfig();
     var lvl = Math.max(1, G.player.lvl);
@@ -133,21 +154,8 @@
     var group = Math.floor(groupBase) + Math.floor(Math.random() * ((C.spawnGroupRandom || 0) + 1));
     group = Math.min(C.spawnGroupMax || 99, Math.max(1, group));
     group = Math.min(group, w.kills - G.waveSpawned);
-    /* 同一批怪随机撒点：x/y 都散开，并做最小间距检查，避免固定列、重叠 */
-    var placed = [];
-    var ySpan = Math.min(110, 40 + group * 2.5);
-    for (var i = 0; i < group; i++) {
-      var x, y, tries = 0;
-      do {
-        x = 24 + Math.random() * (C.width - 48);
-        y = -30 - Math.random() * ySpan;
-        tries++;
-      } while (tries < 12 && placed.some(function (p) {
-        var dx = p.x - x, dy = p.y - y; return dx * dx + dy * dy < 26 * 26;
-      }));
-      placed.push({ x: x, y: y });
-      spawnForWave(x, y);
-    }
+    /* 每只怪各自取环形点：整批从四周包围角色，而不是从固定一侧涌入。 */
+    for (var i = 0; i < group; i++) { var point = ringPoint(); spawnForWave(point.x, point.y); }
     return group;
   }
   function spawnForWave(x, y) {
@@ -254,7 +262,7 @@
   function openLevelUp() {
     G.currentOfferElements = []; G.choices = buildChoices(); recordOffers();
     if (!G.choices.length) { G.pendingLevelUps = 0; return; }
-    G.state = 'levelup'; A.level();
+    G.move = { x: 0, y: 0 }; G.joy = null; G.state = 'levelup'; A.level();
   }
   function refreshChoices() {
     if (G.state !== 'levelup' || G.refreshes <= 0) return false;
@@ -311,7 +319,8 @@
     if (remaining > 0) G.player.hp -= remaining;
     G.damageFlash = 1; G.shake = Math.max(G.shake, 8); A.hurt();
     if (G.player.hp <= 0) {
-      G.player.hp = 0; bankCoins(); G.state = 'over'; G.enemies = []; G.bullets = []; G.zones = []; G.telegraphs = []; A.fail();
+      G.player.hp = 0; bankCoins(); G.state = 'over'; G.move = { x: 0, y: 0 }; G.joy = null;
+      G.enemies = []; G.bullets = []; G.zones = []; G.telegraphs = []; A.fail();
     }
   }
   function updateEffects(dt) {
@@ -323,9 +332,22 @@
     G.floaters.forEach(function (f) { f.age += dt; f.y -= 30 * dt; }); G.floaters = G.floaters.filter(function (f) { return f.age < f.life; });
     G.shake = Math.max(0, G.shake - dt * 40); G.damageFlash = Math.max(0, G.damageFlash - dt * 2); G.toast.time -= dt;
   }
+  /* 移动：move 为 [-1,1] 的方向向量（键盘为八向，摇杆为任意角度），长度大于 1 时归一化封顶。 */
+  function moveHero(dt) {
+    var mv = G.move || { x: 0, y: 0 }, len = Math.hypot(mv.x || 0, mv.y || 0);
+    if (len > 1e-6) {
+      var scale = len > 1 ? 1 / len : 1, step = C.hero.speed * dt;
+      G.player.x = Math.max(C.hero.r, Math.min(C.world.w - C.hero.r, G.player.x + mv.x * scale * step));
+      G.player.y = Math.max(C.hero.r, Math.min(C.world.h - C.hero.r, G.player.y + mv.y * scale * step));
+      G.player.aim = Math.atan2(mv.y, mv.x);
+      G.player.walk += dt * 12;
+    }
+    clampCamera();
+  }
   function update(dt) {
     if (G.state !== 'playing' || G.paused) return;
     G.time += dt * 1000; G.spawnTimer -= dt;
+    moveHero(dt);
     if (G.spawnTimer <= 0 && G.waveSpawned < waveConfig().kills) {
       spawnBatch();
       G.spawnTimer = waveConfig().interval * C.spawnGroupTimeFactor * (0.8 + Math.random() * 0.4) * (G.waveIndex < (C.curve.openingReliefWaves || 1) ? (C.curve.openingRelief || 1) : 1);
@@ -334,14 +356,27 @@
     if (waveSpawnComplete()) { if (!isFinalWave()) { G.waveLead -= dt; if (G.waveLead <= 0) nextWave(); } }
     else G.waveLead = C.waveLeadSeconds;
     updateSkills(dt);
+    /* 敌人全向追击：始终朝角色当前位置直线靠近，贴身即撞线扣血（攻击力=碰撞时剩余生命）。 */
     G.enemies.forEach(function (e) {
       if (e.dead) return;
       combat.statuses(e, dt); if (e.dead) return;
-      if (e.freezeT > 0) { e.freezeT -= dt; }
-      else e.y += e.spd * dt * (1 - Math.min(.9, e.slow || 0));
-      if (e.sway && e.freezeT <= 0) { e.phase += dt * 3; e.x += Math.sin(e.phase) * e.sway * dt * 6; e.x = Math.max(12, Math.min(C.width - 12, e.x)); }
+      var dx = G.player.x - e.x, dy = G.player.y - e.y, dist = Math.hypot(dx, dy) || 1;
+      if (e.freezeT > 0) e.freezeT -= dt;
+      else {
+        var step = e.spd * dt * (1 - Math.min(.9, e.slow || 0));
+        e.x += dx / dist * step; e.y += dy / dist * step;
+        if (e.sway) {
+          e.phase += dt * 3;
+          var side = Math.sin(e.phase) * e.sway * dt * 6;
+          e.x += -dy / dist * side; e.y += dx / dist * side;
+        }
+        e.x = Math.max(e.r, Math.min(C.world.w - e.r, e.x));
+        e.y = Math.max(e.r, Math.min(C.world.h - e.r, e.y));
+      }
       e.flash = Math.max(0, e.flash - dt * 6);
-      if (e.y >= dangerY()) { e.dead = true; hurtPlayer(e.hp); burst(e.x, dangerY(), e.color, 10, 160); }
+      if (Math.hypot(G.player.x - e.x, G.player.y - e.y) <= e.r + C.hero.r) {
+        e.dead = true; burst(e.x, e.y, e.color, 10, 160); hurtPlayer(e.hp);
+      }
     });
     if (G.state === 'playing') combat.update(dt);
     G.enemies = G.enemies.filter(function (e) { return !e.dead; });
@@ -417,6 +452,8 @@
     recompute: recomputeDerived, refreshChoices: refreshChoices,
     openMeta: openMeta, leaveMeta: leaveMeta, buyMeta: buyMeta, metaCost: metaCost, totalStars: totalStars, bankCoins: bankCoins,
     pause: function (value) { G.paused = value; G.last = P.now(); },
-    toast: toast, dangerY: dangerY, waveConfig: waveConfig
+    setMove: function (x, y) { G.move.x = x || 0; G.move.y = y || 0; },
+    view: view, clampCamera: clampCamera, ringPoint: ringPoint,
+    toast: toast, waveConfig: waveConfig
   };
 })(typeof GameGlobal !== 'undefined' ? GameGlobal : window);

@@ -16,12 +16,27 @@ function pick(h,policy){
  }
  return [...G.choices].sort((a,b)=>score(b)-score(a))[0];
 }
+/* 模拟玩家的走位：躲开身边 150px 内的敌人，并避免贴死在墙边。
+   没有走位时新玩法会退化成“站桩等死”，模拟结果不再代表实际操作。 */
+function steer(h,r=150){
+ const p=h.G.player,C=h.C;let vx=0,vy=0;
+ for(const e of h.G.enemies){
+  if(e.dead)continue;
+  const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy);
+  if(d>r||d<1e-6)continue;
+  const w=1-d/r;vx+=dx/d*w;vy+=dy/d*w;
+ }
+ if(p.x<80)vx+=1;if(p.x>C.world.w-80)vx-=1;
+ if(p.y<80)vy+=1;if(p.y>C.world.h-80)vy-=1;
+ const len=Math.hypot(vx,vy);
+ if(len<1e-6)h.GP.setMove(0,0);else h.GP.setMove(vx/len,vy/len);
+}
 function simulate({progress,level=0,seed=1,policy='bond',maxSeconds=1200}={}){
  const h=createGame(progress,seed);h.GP.resetRun(level);const {G,GP}=h;
  let frames=0,maxEnemies=0;
  while(G.state!=='over'&&G.state!=='cleared'&&frames<maxSeconds*60){
   if(G.state==='levelup'){const choice=pick(h,policy);if(!choice||!GP.applyChoice(choice))throw new Error('选卡死锁');}
-  else{GP.update(1/60);frames++;maxEnemies=Math.max(maxEnemies,G.enemies.length);}
+  else{steer(h);GP.update(1/60);frames++;maxEnemies=Math.max(maxEnemies,G.enemies.length);}
  }
  const generated={};h.generatedEvents.forEach(e=>{const n=generated[e.skill]||(generated[e.skill]={bursts:0,empty:0});n.bursts++;if(!e.hits)n.empty++;});
  return {cleared:G.state==='cleared'&&G.result.stars>=1,outcome:G.state,stars:G.result?G.result.stars:0,seconds:Math.round(G.time/1000),wave:G.waveIndex+1,kills:G.player.kills,maxEnemies,generated,

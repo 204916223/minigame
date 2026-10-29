@@ -29,10 +29,12 @@ function createGame(progress, seed = 1, wechat = false, initialStorage = {}) {
   const PM = sandbox.window.PixelMow, GP = PM.Gameplay, G = GP.state;
   PM.Platform.setupCanvas();
   let nextId = 100000;
-  function target(x = 240, y = 300, options = {}) {
+  function target(x = G.player.x, y = G.player.y - 200, options = {}) {
     const e = Object.assign({ id: ++nextId, x, y, hp: 10000, maxhp: 10000, spd: 0, xp: 0, dmg: 1, r: 12, cell: 3, spr: 'slime', color: '#fff', resist: {}, def: 0, flash: 0, freezeT: 0, poisonT: 0, dead: false }, options);
     G.enemies.push(e); return e;
   }
+  /* 相对角色放置敌人：dx 向右、dy 向下（负值在角色上方）。 */
+  function at(dx = 0, dy = -200, options = {}) { return target(G.player.x + dx, G.player.y + dy, options); }
   function equip(ids) {
     G.equippedOrder = [PM.Config.loadout.initial].concat(ids.filter(id => id !== PM.Config.loadout.initial));
     PM.Config.skills.forEach(s => { G.skills[s.id].owned = G.equippedOrder.includes(s.id); });
@@ -45,6 +47,8 @@ function createGame(progress, seed = 1, wechat = false, initialStorage = {}) {
     G.choices = [choice]; return GP.applyChoice(choice);
   }
   function frames(n) { for (let i = 0; i < n; i++) { clock += 1000 / 60; GP.update(1 / 60); } }
-  return { random: math.random, PM, C: PM.Config, R: PM.Rules, GP, G, target, equip, take, frames, storage, events, generatedEvents, advanceClock: ms => { clock += ms; } };
+  function hold(x, y, n = 1) { GP.setMove(x, y); frames(n); GP.setMove(0, 0); }
+  const view = () => ({ x: G.cam.x, y: G.cam.y, w: PM.Config.width, h: PM.Config.height });
+  return { random: math.random, PM, C: PM.Config, R: PM.Rules, GP, G, target, at, view, hold, equip, take, frames, storage, events, generatedEvents, advanceClock: ms => { clock += ms; } };
 }
 module.exports = { createGame };

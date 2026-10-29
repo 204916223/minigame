@@ -7,8 +7,14 @@
     return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
   }
   function create(G, hooks) {
-    function onField(e) { return !e.dead && e.hp > 0 && e.y >= C.combat.enterY; }
+    /* 交战线 = 当前视口：镜头外的敌人不能被锁定、溅射、传导或灼烧，
+       保证玩家看得到每一次击杀，也不会被看不见的怪白打死。 */
+    function inView(e) {
+      return e.x >= G.cam.x && e.x <= G.cam.x + C.width && e.y >= G.cam.y && e.y <= G.cam.y + C.height;
+    }
+    function onField(e) { return !e.dead && e.hp > 0 && inView(e); }
     function targets() { return G.enemies.filter(onField); }
+    function distanceToHero(e) { return Math.hypot(e.x - G.player.x, e.y - G.player.y); }
     function damageAmount(e, attack, d) {
       var source = R.skill(d.id), sameElement = source && source.el === e.el;
       return R.damage(attack, e.def || 0, d.breach || 0, G.player.lvl, G.waveIndex + 1) *
@@ -24,11 +30,21 @@
     }
     function effects(e, d) {
       var resist = e.resist || {};
-      if (d.knock) e.y = Math.max(C.combat.enterY, e.y - d.knock * (1 - (resist.knock || 0)));
+      // 击退沿“角色 → 敌人”方向推开，不把怪推出世界墙外。
+      if (d.knock) {
+        var dx = e.x - G.player.x, dy = e.y - G.player.y, len = Math.hypot(dx, dy) || 1, push = d.knock * (1 - (resist.knock || 0));
+        e.x = Math.max(e.r, Math.min(C.world.w - e.r, e.x + dx / len * push));
+        e.y = Math.max(e.r, Math.min(C.world.h - e.r, e.y + dy / len * push));
+      }
       if (d.freezeChance && Math.random() < d.freezeChance) e.freezeT = Math.max(e.freezeT || 0, Math.min(C.control.freezeCap, d.freeze * (1 - (resist.freeze || 0))));
       if (d.slow) { e.slowT = 2; e.slow = Math.max(e.slow || 0, d.slow); }
     }
-    function hit(e, d, attack) { if (!onField(e)) return; effects(e, d); damageEnemy(e, attack === undefined ? d.dmg : attack, d); }
+    /* 先结算伤害再上控制：击退可能把贴边的目标推出视口，若先击退会吞掉这次命中。 */
+    function hit(e, d, attack) {
+      if (!onField(e)) return;
+      damageEnemy(e, attack === undefined ? d.dmg : attack, d);
+      if (!e.dead) effects(e, d);
+    }
     function arc(a, b, color) { G.arcs.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: color, age: 0, life: .22 }); }
     function boom(x, y, radius, color) { G.booms.push({ x: x, y: y, r: radius, color: color, age: 0, life: .45 }); }
     function dot(e, d, attack) {
@@ -39,18 +55,25 @@
     }
     function area(x, y, d, leaveZone) {
       var s = R.skill(d.id), affected = targets().filter(function (e) { return Math.hypot(e.x - x, e.y - y) <= d.radius + e.r; });
-      affected.slice(0, d.gather).forEach(function (e) { e.x += (x - e.x) * .5; e.y = Math.max(C.combat.enterY, e.y + (y - e.y) * .5); });
+      affected.slice(0, d.gather).forEach(function (e) { e.x += (x - e.x) * .5; e.y += (y - e.y) * .5; });
       affected.forEach(function (e) { hit(e, d); });
       boom(x, y, d.radius, s.color);
       if (leaveZone && d.duration) G.zones.push({ x: x, y: y, r: d.radius, color: s.color, age: 0, life: d.duration, pending: 0, derived: d });
       return affected.length;
     }
+    /* 预判落点：按敌人朝角色方向的速度与剩余冻结/减速时间，估算 seconds 秒后的位置。 */
     function generatedPoint(e, seconds) {
       var frozen = Math.min(seconds, Math.max(0, e.freezeT || 0)), moving = seconds - frozen;
       var slowed = Math.max(0, Math.min(seconds, e.slowT || 0) - frozen);
-      var x = e.x + (e.sway ? 2 * e.sway * (Math.cos(e.phase) - Math.cos(e.phase + moving * 3)) : 0);
-      return { x: Math.max(12, Math.min(C.width - 12, x)),
-        y: e.y + e.spd * (moving - slowed * Math.min(.9, e.slow || 0)) };
+      var dx = G.player.x - e.x, dy = G.player.y - e.y, len = Math.hypot(dx, dy) || 1;
+      var travel = e.spd * (moving - slowed * Math.min(.9, e.slow || 0));
+      var x = e.x + dx / len * travel, y = e.y + dy / len * travel;
+      if (e.sway) {
+        // 横移垂直于追击方向，相位差积分与逐帧 sin 摆动一致。
+        var side = 2 * e.sway * (Math.cos(e.phase) - Math.cos(e.phase + moving * 3));
+        x += -dy / len * side; y += dx / len * side;
+      }
+      return { x: Math.max(e.r, Math.min(C.world.w - e.r, x)), y: Math.max(e.r, Math.min(C.world.h - e.r, y)) };
     }
     function reservedDamage(e) {
       var pending = G.telegraphs.reduce(function (sum, t) {
@@ -79,12 +102,12 @@
     function densest(radius, excluded, delay) {
       var pool = targets().filter(function (e) { return !excluded[e.id] && (!delay || e.hp > reservedDamage(e)); }).map(function (e) {
         return { enemy: e, point: delay ? generatedPoint(e, delay) : e };
-      }).filter(function (t) { return t.point.y < C.hero.y - 8; });
+      });
       if (!pool.length) return null;
       var best = pool[0], score = -1;
-      // 固定 12×16 候选点；生成技按爆发时的预估位置选密集区。
+      // 在当前视口内做固定 12×16 候选点搜索；生成技按爆发时的预估位置选密集区。
       for (var row = 0; row < 16; row++) for (var col = 0; col < 12; col++) {
-        var x = (col + .5) * C.width / 12, y = C.combat.enterY + row * (C.hero.y - C.combat.enterY) / 16;
+        var x = G.cam.x + (col + .5) * C.width / 12, y = G.cam.y + (row + .5) * C.height / 16;
         var count = 0, nearest = null, distance = Infinity;
         pool.forEach(function (t) { var dist = Math.hypot(t.point.x - x, t.point.y - y); if (dist <= radius) count++; if (dist < distance) { distance = dist; nearest = t; } });
         if (count > score) { score = count; best = nearest; }
@@ -114,22 +137,30 @@
         reached[next.id] = true; arc(current, next, R.skill(d.id).color); hit(next, d); current = next;
       }
     }
+    /* 折射激光：朝最近敌人附近发射，在视口四壁反弹，保证整条路径都在画面里。 */
     function laser(d) {
-      var angle = (30 + Math.random() * 30) * Math.PI / 180, vx = Math.cos(angle) * (Math.random() < .5 ? -1 : 1), vy = -Math.sin(angle);
-      var start = { x: C.hero.x, y: C.hero.y - 16 }, reached = {};
+      var aim = targets().sort(function (a, b) { return distanceToHero(a) - distanceToHero(b); })[0];
+      var base = aim ? Math.atan2(aim.y - G.player.y, aim.x - G.player.x) : -Math.PI / 2;
+      var angle = base + (Math.random() < .5 ? -1 : 1) * (10 + Math.random() * 20) * Math.PI / 180;
+      var vx = Math.cos(angle), vy = Math.sin(angle), reached = {};
+      var left = G.cam.x, right = G.cam.x + C.width, top = G.cam.y, bottom = G.cam.y + C.height;
+      var start = { x: G.player.x, y: G.player.y };
       for (var bounce = 0; bounce <= d.bounce; bounce++) {
-        var wall = vx > 0 ? C.width : 0, tx = (wall - start.x) / vx, ty = (C.combat.enterY - start.y) / vy;
+        var tx = vx > 0 ? (right - start.x) / vx : vx < 0 ? (left - start.x) / vx : Infinity;
+        var ty = vy > 0 ? (bottom - start.y) / vy : vy < 0 ? (top - start.y) / vy : Infinity;
         var distance = Math.min(tx, ty), end = { x: start.x + vx * distance, y: start.y + vy * distance };
         arc(start, end, R.skill(d.id).color);
         targets().forEach(function (e) { if (!reached[e.id] && distSegment(e, start, end) <= e.r + 3) { reached[e.id] = true; hit(e, d); } });
-        if (ty <= tx) break;
-        start = end; vx = -vx;
+        if (!isFinite(distance)) break;
+        start = end;
+        if (tx <= ty) vx = -vx; else vy = -vy;
       }
     }
     function cast(d) {
-      var s = R.skill(d.id), pool = targets().sort(function (a, b) { return b.y - a.y; });
+      var s = R.skill(d.id), pool = targets().sort(function (a, b) { return distanceToHero(a) - distanceToHero(b); });
       if (!pool.length) return false;
-      var origin = { x: C.hero.x, y: C.hero.y - 16 };
+      // 全向接近后不再有“最前排”，统一优先打最近的敌人。
+      var origin = { x: G.player.x, y: G.player.y };
       if (s.mode === 'fullscreen') {
         pool.forEach(function (e) { if (s.persistent) dot(e, d, d.dmg); else hit(e, d); });
         if (!s.persistent) { G.sweeps.push({ color: s.color, age: 0, life: .65 }); hooks.sound('boom'); }
@@ -169,7 +200,7 @@
             else { hit(e, b.derived, b.damage); split(b, e); if (b.pierce > 0) b.pierce--; else b.dead = true; }
           }
         }
-        if (b.life <= 0 || b.x < -20 || b.x > C.width + 20 || b.y < -20 || b.y > C.height + 20) b.dead = true;
+        if (b.life <= 0 || b.x < -40 || b.x > C.world.w + 40 || b.y < -40 || b.y > C.world.h + 40) b.dead = true;
       });
       G.bullets = G.bullets.filter(function (b) { return !b.dead; });
       G.zones.forEach(function (z) {

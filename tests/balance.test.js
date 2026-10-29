@@ -75,7 +75,7 @@ test('十波实际出怪总数与小首领数量准确，最终首领仅在末�
 test('普通怪、小首领、最终首领每只1金币，重复命中尸体不能重复领奖', () => {
   const h=run();
   for(const key of ['grunt','miniboss','boss']) {
-    const e=h.target(240,300,{hp:1,xp:0,key,boss:key!=='grunt'});
+    const e=h.at(0,-200,{hp:1,xp:0,key,boss:key!=='grunt'});
     h.GP.combat.hit(e,h.G.skills.basic.derived); h.GP.combat.hit(e,h.G.skills.basic.derived);
   }
   assert.equal(h.G.coins,3); assert.equal(h.G.player.kills,3);
@@ -93,7 +93,7 @@ test('敌人碰撞用剩余生命作攻击，先扣角色绝对防御再扣护�
   function collide(hp,shield=0,level=1,wave=1) {
     const h=run(); h.G.skills.basic.owned=false; h.G.spawnTimer=100;
     h.G.player.shield=shield; h.G.player.lvl=level; h.G.waveIndex=wave-1;
-    h.target(240,h.GP.dangerY(),{hp,maxhp:2000}); h.GP.update(1/60); return h.G.player;
+    h.target(h.G.player.x,h.G.player.y,{hp,maxhp:2000}); h.GP.update(1/60); return h.G.player;
   }
   assert.equal(collide(150).hp,350); assert.equal(collide(120).hp,380);
   assert.equal(collide(100).hp,373); assert.equal(collide(80).hp,373); assert.equal(collide(80,0,7,5).hp,363);
@@ -102,10 +102,10 @@ test('敌人碰撞用剩余生命作攻击，先扣角色绝对防御再扣护�
 
 test('闪电链接扣防后半伤，同属性再次减半，未破防保底也按同一倍率结算', () => {
   const h=run(), d=h.R.derive(h.G,'chain');
-  const off=h.target(240,300,{def:50,el:'fire'}), same=h.target(240,300,{def:50,el:'elec'});
+  const off=h.at(0,-200,{def:50,el:'fire'}), same=h.at(0,-200,{def:50,el:'elec'});
   h.GP.combat.hit(off,d); h.GP.combat.hit(same,d);
   assert.equal(off.maxhp-off.hp,25); assert.equal(same.maxhp-same.hp,12.5);
-  const armored=h.target(240,300,{def:1000,el:'elec'}); h.G.player.lvl=7;h.G.waveIndex=4;
+  const armored=h.at(0,-200,{def:1000,el:'elec'}); h.G.player.lvl=7;h.G.waveIndex=4;
   h.GP.combat.hit(armored,d); assert.equal(armored.maxhp-armored.hp,37*.5*.5);
 });
 
@@ -114,14 +114,14 @@ test('所有攻击形态及持续区域对同元素半伤；持续伤害的保�
     const losses=[];
     for(const same of [false,true]) {
       const h=run();
-      for(let y=100;y<=450;y+=70)for(let x=50;x<470;x+=60)h.target(x,y,{el:same?skill.el:skill.el==='physical'?'fire':'physical'});
+      for(let dy=-260;dy<=100;dy+=60)for(let dx=-200;dx<=200;dx+=50)h.at(dx,dy,{el:same?skill.el:skill.el==='physical'?'fire':'physical'});
       h.GP.combat.cast(h.R.derive(h.G,skill.id));
       for(let i=0;i<240;i++){h.GP.combat.update(1/60);h.G.enemies.forEach(e=>h.GP.combat.statuses(e,1/60));}
       losses.push(h.G.enemies.reduce((sum,e)=>sum+e.maxhp-e.hp,0));
     }
     assert.ok(losses[0]>0,skill.id); assert.ok(Math.abs(losses[0]-losses[1]*2)<1e-6,skill.id);
   }
-  const h=run(),e=h.target(240,300,{def:1000,el:'poison'});h.G.player.lvl=7;h.G.waveIndex=4;
+  const h=run(),e=h.at(0,-200,{def:1000,el:'poison'});h.G.player.lvl=7;h.G.waveIndex=4;
   h.GP.combat.cast(h.R.derive(h.G,'unknown'));
   for(let i=0;i<60;i++)h.GP.combat.statuses(e,1/60);
   assert.ok(Math.abs(e.maxhp-e.hp-37*.5)<1e-8);
@@ -137,7 +137,7 @@ test('冰冻基础概率固定10%，仅冰冻卡及羁绊提升概率，时长�
   assert.ok(Math.abs(h.R.derive(h.G,'crystal').freezeChance-.15)<1e-9);
   h.G.cardLevels['icecone:freeze']=5; assert.ok(Math.abs(h.R.derive(h.G,'icecone').freezeChance-.65)<1e-9);
   for(const resistance of [0,.35,.6]) {
-    const e=h.target(240,300,{resist:{freeze:resistance}}),d={...h.R.derive(h.G,'icecone'),freezeChance:1};
+    const e=h.at(0,-200,{resist:{freeze:resistance}}),d={...h.R.derive(h.G,'icecone'),freezeChance:1};
     h.GP.combat.hit(e,d); assert.equal(e.freezeT,1-resistance);
   }
 });

@@ -26,6 +26,10 @@
   PM.Config = {
     width: 480,
     height: 640,
+    /* 世界地图比屏幕大 3×3 屏，镜头跟随角色并在世界边界夹取；
+       hero.r 同时用于贴墙夹取和接触判定，禁止角色与怪刷在墙外。 */
+    world: { w: 1440, h: 1920 },
+    spawnRing: { min: 1.04, max: 1.4, margin: 14 },
     /* 波次衔接：不再插 3 秒全屏横幅，本波最后一只怪出场后倒计时 3s 直接接下一波 */
     waveLeadSeconds: 3,
     /* 出怪速度每波至少 +10%（间隔等比缩小）；
@@ -43,17 +47,17 @@
       coinMultiplier: .5, xpMultiplier: .5, interval: 1.5, minInterval: .5,
       pool: { grunt: 1, runner: .5, bat: .3, tank: .1 } },
     enemyHpMultiplier: 2,
-    hero: { x: 240, y: 552, hp: 400, defense: 100 },
+    /* speed 为像素/秒；r 用于贴墙与接触判定 */
+    hero: { hp: 400, defense: 100, speed: 165, r: 12 },
 
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
      openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔；
      levelEnemyGrowth：主角每升 1 级，场上和之后刷出的怪防御/血量/速度线性 +5% */
     curve: { waveHpGrowth: 1.035, waveDefGrowth: 1.02, spawnGrowth: 0.0018, openingRelief: 1.0, openingReliefWaves: 0, levelEnemyGrowth: 1.05 },
-    /* 控制上限：冰冻最长 2s（受抗性衰减），击退不能把怪推出屏幕 */
-    control: { freezeCap: 2, knockMinY: 8 },
-    /* 交战线：敌人必须先走进画面（y >= enterY）才会被锁定/溅射/传导/灼烧，
-       否则武器会在屏幕外就把怪杀掉，玩家看不到敌人出场 */
-    combat: { enterY: 8, radius: 55, duration: 3, projectileSpeed: 1600,
+    /* 控制上限：冰冻最长 2s（受抗性衰减）；击退沿角色方向推开，不会被推出世界边界 */
+    control: { freezeCap: 2 },
+    /* 交战线改为「视口内」：敌人必须先走进镜头画面才会被锁定/溅射/传导/灼烧 */
+    combat: { radius: 55, duration: 3, projectileSpeed: 1600,
       knock: 30, freeze: 1, freezeChance: .1, chainRange: 110, zoneTick: 1, zoneDamageRatio: .25, persistentTick: 1,
       generateDelay: .5, generateFill: .5 },
     /* 星辉：从第二关起，每颗已获得的星给全队伤害 +15%（加法叠加），
