@@ -1,7 +1,7 @@
 "use strict";
 const test = require('node:test'), assert = require('node:assert/strict');
 const { createGame } = require('./harness');
-function run(progress) { const h = createGame(progress); h.GP.resetRun(0); h.G.spawnTimer = 1e6; return h; }
+function run(progress) { const h = createGame(progress); h.GP.resetRun(0); h.G.spawnTimer = 1e6; h.clearProps(); return h; }
 function key(h, code, down = true) {
   h.events.keydown({ code, key: code, preventDefault() {} });
   if (!down) h.events.keyup({ code, preventDefault() {} });

@@ -47,6 +47,55 @@
     for (var y = y0; y <= y1; y += step) { c.beginPath(); c.moveTo(Math.max(0, cam.x), y + .5); c.lineTo(Math.min(w, cam.x + C.width), y + .5); c.stroke(); }
     c.strokeStyle = 'rgba(90,209,255,.40)'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3); c.lineWidth = 1;
   }
+  /* 石头：贴地阴影 + 不规则多边形本体 + 顶部高光；顶点按 phase 抖动，每块形状都不同。 */
+  function drawStones(c, cam) {
+    var list = GP.state.stones;
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (!inViewRect(s, cam, 48)) continue;
+      c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath();
+      c.ellipse(s.x + 2, s.y + s.r * .66, s.r * .98, s.r * .40, 0, 0, Math.PI * 2); c.fill();
+      c.beginPath();
+      for (var k = 0; k < 7; k++) {
+        var a = s.phase + k * Math.PI * 2 / 7, rr = s.r * (.80 + .20 * Math.sin(k * 2.3 + s.phase));
+        var px = s.x + Math.cos(a) * rr, py = s.y + Math.sin(a) * rr * .88;
+        if (k) c.lineTo(px, py); else c.moveTo(px, py);
+      }
+      c.closePath();
+      c.fillStyle = s.tone > .5 ? '#4b5566' : '#3f4a5d'; c.fill();
+      c.strokeStyle = 'rgba(150,178,215,.30)'; c.lineWidth = 2; c.stroke();
+      c.fillStyle = 'rgba(198,222,255,.13)'; c.beginPath();
+      c.ellipse(s.x - s.r * .20, s.y - s.r * .30, s.r * .40, s.r * .24, -.5, 0, Math.PI * 2); c.fill();
+    }
+  }
+  /* 草丛：几团缓慢摆动的叶团 + 草叶，整体略透明，让藏在里面的人影若隐若现。 */
+  function drawBushes(c, cam, time) {
+    var list = GP.state.bushes, t = (time || 0) / 1000;
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i];
+      if (!inViewRect(b, cam, 48)) continue;
+      var sway = Math.sin(t * 1.7 + b.phase) * 1.6;
+      c.globalAlpha = .88;
+      c.fillStyle = b.tone > .5 ? '#1d4d33' : '#19422c';
+      for (var k = 0; k < 5; k++) {
+        var a = b.phase + k * Math.PI * 2 / 5;
+        c.beginPath();
+        c.ellipse(b.x + Math.cos(a) * b.r * .40 + sway * .5, b.y + Math.sin(a) * b.r * .28,
+          b.r * .52, b.r * .38, a, 0, Math.PI * 2); c.fill();
+      }
+      c.strokeStyle = '#2e7d4f'; c.lineWidth = 2.5; c.lineCap = 'round';
+      for (var j = 0; j < 7; j++) {
+        var f = j / 6, ang = -Math.PI / 2 + (f - .5) * 1.7;
+        var len = b.r * (.62 + .42 * Math.sin(j * 1.9 + b.phase));
+        var x0 = b.x + (f - .5) * b.r, y0 = b.y + b.r * .30;
+        c.beginPath(); c.moveTo(x0, y0);
+        c.quadraticCurveTo(x0 + Math.cos(ang) * len * .55 + sway, y0 + Math.sin(ang) * len * .55,
+          x0 + Math.cos(ang) * len + sway * 1.8, y0 + Math.sin(ang) * len);
+        c.stroke();
+      }
+    }
+    c.globalAlpha = 1; c.lineCap = 'butt';
+  }
   function inViewRect(e, cam, pad) {
     return e.x >= cam.x - pad && e.x <= cam.x + C.width + pad && e.y >= cam.y - pad && e.y <= cam.y + C.height + pad;
   }
@@ -68,6 +117,7 @@
     var c = ctx(), G = GP.state, cam = G.cam;
     c.save(); c.translate(-cam.x, -cam.y);
     worldGround(c, cam);
+    drawStones(c, cam);
     G.zones.forEach(function (z) { var fade = Math.max(0, 1 - z.age / z.life), color = z.color || '#a9e34b';
       c.globalAlpha = fade * .26; c.fillStyle = color; c.beginPath(); c.arc(z.x, z.y, z.r, 0, Math.PI * 2); c.fill();
       c.globalAlpha = fade * .7; c.strokeStyle = color; c.lineWidth = 1; c.stroke(); }); c.globalAlpha = 1;
@@ -112,9 +162,14 @@
       if (e.hp < e.maxhp) { var w = e.r * 2; c.fillStyle = '#0b1224'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w, 3); c.fillStyle = '#ff5d6c'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w * Math.max(0, e.hp / e.maxhp), 3); } });
     var p = G.player, bob = Math.sin(p.walk || 0) * 1.5;
     c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(p.x, p.y + 13, 13, 5, 0, 0, Math.PI * 2); c.fill();
+    /* 站进草丛时角色半透明，配合盖在上面的草丛读作“藏起来了”。 */
+    c.globalAlpha = p.inBush ? .5 : 1;
     sprite(C.sprites.hero, p.x, p.y + bob, 4);
     c.strokeStyle = 'rgba(143,233,255,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(p.x, p.y - 14);
     c.lineTo(p.x + Math.cos(p.aim || -Math.PI / 2) * 14, p.y - 14 + Math.sin(p.aim || -Math.PI / 2) * 14); c.stroke();
+    c.globalAlpha = 1;
+    /* 草丛画在角色与敌人之上，才能真的“挡住”人；也顺带遮住草里的怪。 */
+    drawBushes(c, cam, G.time);
     G.parts.forEach(function (q) { c.globalAlpha = 1 - q.age / q.life; c.fillStyle = q.color; c.fillRect(q.x | 0, q.y | 0, q.size, q.size); }); c.globalAlpha = 1;
     G.floaters.forEach(function (f) { c.globalAlpha = 1 - f.age / f.life; text(f.text, f.x, f.y, 12, f.color, 'center', 'middle', 'bold'); }); c.globalAlpha = 1;
     c.restore();

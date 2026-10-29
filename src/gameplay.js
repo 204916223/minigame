@@ -18,6 +18,7 @@
       state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0,
       player: {}, move: { x: 0, y: 0 }, cam: { x: 0, y: 0 }, skills: {}, cardLevels: {}, cardOrder: [],
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
+      props: [], stones: [], bushes: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
       waveIndex: 0, waveKills: 0, waveSpawned: 0, bossSpawned: false,
       waveLead: 0, pendingLevelUps: 0, refreshes: 0, coins: 0, lastCoins: 0, metaReturn: null,
@@ -87,6 +88,10 @@
     G.equippedOrder = [C.loadout.initial]; G.focusedSkill = C.loadout.initial; G.sweeps = [];
     G.skills = {}; SKILLS.forEach(function (w) { G.skills[w.id] = { owned: w.id === 'basic', cd: 0 }; });
     G.enemies = []; G.bullets = []; G.parts = []; G.booms = []; G.floaters = []; G.zones = []; G.arcs = []; G.telegraphs = [];
+    /* 每局重排地图：石头与草丛都随机，使每局的走位路线不同。 */
+    G.props = genProps();
+    G.stones = G.props.filter(function (p) { return p.kind === 'stone'; });
+    G.bushes = G.props.filter(function (p) { return p.kind === 'bush'; });
     G.spawnTimer = 0.7; G.shake = 0; G.damageFlash = 0; G.waveIndex = 0; G.waveKills = 0; G.waveSpawned = 0;
     G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0; G.refreshes = 0;
     G.choices = []; G.choicesCompleted = 0; G.choiceHistory = []; G.currentOfferElements = [];
@@ -127,7 +132,10 @@
       hp: hp, maxhp: hp, spd: type.spd * level.speedScale * spdMul, xp: type.xp,
       el: el, r: type.r, cell: type.cell, spr: type.spr, color: C.elements[el].color, def: type.def * level.defScale * defMul * defWaveMul * spawnMul,
       resist: type.resist, sway: type.sway ? 7 + Math.random() * 7 : 0, phase: Math.random() * Math.PI * 2,
+      side: Math.random() < .5 ? 1 : -1,
       flash: 0, freezeT: 0, poisonT: 0, poisonDps: 0, boss: !!type.boss, miniboss: !!type.miniboss, dead: false });
+    /* 环形刷点可能正好落在石头里：出生即挤到石头边缘，避免一出生就被判定卡住。 */
+    pushOutOfStones(G.enemies[G.enemies.length - 1], type.r);
     G.waveSpawned++;
   }
   spawnEnemy.uid = 0;
@@ -146,6 +154,74 @@
     }
     return { x: Math.max(margin, Math.min(C.world.w - margin, p.x)),
       y: Math.max(margin, Math.min(C.world.h - margin, p.y - C.height / 2 - 40)) };
+  }
+  /* 地图装饰：每局开始时随机撒点。石头要满足「离出生点 spawnClear」「彼此留 gap」两条约束，
+     撒不下就放弃这一块（宁可少一块石头，也不要把地图切成走不通的死角）。 */
+  function genProps() {
+    var cfg = C.props, list = [], cx = C.world.w / 2, cy = C.world.h / 2;
+    function fits(x, y, r, minGap, avoidSpawn) {
+      if (avoidSpawn && Math.hypot(x - cx, y - cy) < cfg.spawnClear + r) return false;
+      for (var i = 0; i < list.length; i++) {
+        var p = list[i];
+        if (Math.hypot(p.x - x, p.y - y) < p.r + r + minGap) return false;
+      }
+      return true;
+    }
+    for (var i = 0; i < cfg.stoneCount; i++) {
+      for (var tries = 0; tries < 60; tries++) {
+        var r = cfg.stoneR[0] + Math.random() * (cfg.stoneR[1] - cfg.stoneR[0]);
+        var x = cfg.edge + r + Math.random() * (C.world.w - (cfg.edge + r) * 2);
+        var y = cfg.edge + r + Math.random() * (C.world.h - (cfg.edge + r) * 2);
+        if (!fits(x, y, r, cfg.gap, true)) continue;
+        list.push({ kind: 'stone', x: x, y: y, r: r, phase: Math.random() * Math.PI * 2, tone: Math.random() });
+        break;
+      }
+    }
+    for (var j = 0; j < cfg.bushCount; j++) {
+      for (var t2 = 0; t2 < 40; t2++) {
+        var br = cfg.bushR[0] + Math.random() * (cfg.bushR[1] - cfg.bushR[0]);
+        var bx = cfg.edge + Math.random() * (C.world.w - cfg.edge * 2);
+        var by = cfg.edge + Math.random() * (C.world.h - cfg.edge * 2);
+        /* 草丛之间允许轻微重叠，只避开石头本体，且不占用出生点留空区。 */
+        if (!fits(bx, by, br * 0.55, 4, true)) continue;
+        list.push({ kind: 'bush', x: bx, y: by, r: br, phase: Math.random() * Math.PI * 2, tone: Math.random() });
+        break;
+      }
+    }
+    return list;
+  }
+  /* 前瞻点是否压到石头：敌人绕行用，命中返回那块石头，否则 null。 */
+  function stoneHit(x, y, r) {
+    var list = G.stones || [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i], dx = x - s.x, dy = y - s.y, min = s.r + r;
+      if (dx * dx + dy * dy < min * min) return s;
+    }
+    return null;
+  }
+  /* 圆-圆推出：把移动体挤出石头。只平移位置、不改速度方向，
+     于是贴着石头走时切向分量会保留下来，表现为沿边缘滑过去而不是被粘住。 */
+  function pushOutOfStones(o, r) {
+    var list = G.stones || [], moved = false;
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i], dx = o.x - s.x, dy = o.y - s.y, min = s.r + r;
+      var d2 = dx * dx + dy * dy;
+      if (d2 >= min * min) continue;
+      var d = Math.sqrt(d2);
+      if (d < 1e-4) { dx = 0; dy = 1; d = 1; }  // 圆心重合时给个固定方向，避免除零抖动
+      o.x = s.x + dx / d * min; o.y = s.y + dy / d * min;
+      moved = true;
+    }
+    return moved;
+  }
+  /* 草丛判定用收缩半径：站在叶片边缘不算藏进去，避免半透明频繁闪烁。 */
+  function inBush(x, y) {
+    var list = G.bushes || [];
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i], dx = x - b.x, dy = y - b.y, rr = b.r * .72;
+      if (dx * dx + dy * dy < rr * rr) return true;
+    }
+    return false;
   }
   function spawnBatch() {
     var w = waveConfig();
@@ -332,7 +408,8 @@
     G.floaters.forEach(function (f) { f.age += dt; f.y -= 30 * dt; }); G.floaters = G.floaters.filter(function (f) { return f.age < f.life; });
     G.shake = Math.max(0, G.shake - dt * 40); G.damageFlash = Math.max(0, G.damageFlash - dt * 2); G.toast.time -= dt;
   }
-  /* 移动：move 为 [-1,1] 的方向向量（键盘为八向，摇杆为任意角度），长度大于 1 时归一化封顶。 */
+  /* 移动：move 为 [-1,1] 的方向向量（键盘为八向，摇杆为任意角度），长度大于 1 时归一化封顶。
+     先夹世界边界，再被石头推出，最后再夹一次——推出有可能把角色顶到地图外。 */
   function moveHero(dt) {
     var mv = G.move || { x: 0, y: 0 }, len = Math.hypot(mv.x || 0, mv.y || 0);
     if (len > 1e-6) {
@@ -342,6 +419,11 @@
       G.player.aim = Math.atan2(mv.y, mv.x);
       G.player.walk += dt * 12;
     }
+    if (pushOutOfStones(G.player, C.hero.r)) {
+      G.player.x = Math.max(C.hero.r, Math.min(C.world.w - C.hero.r, G.player.x));
+      G.player.y = Math.max(C.hero.r, Math.min(C.world.h - C.hero.r, G.player.y));
+    }
+    G.player.inBush = inBush(G.player.x, G.player.y);
     clampCamera();
   }
   function update(dt) {
@@ -364,14 +446,32 @@
       if (e.freezeT > 0) e.freezeT -= dt;
       else {
         var step = e.spd * dt * (1 - Math.min(.9, e.slow || 0));
-        e.x += dx / dist * step; e.y += dy / dist * step;
+        var dirX = dx / dist, dirY = dy / dist;
+        /* 正对石头时推出方向与前进方向共线，会被推回原地卡死；
+           所以撞墙前改为沿石头的切线滑行（左右由各自的 e.side 决定）。 */
+        var block = stoneHit(e.x + dirX * step * 2, e.y + dirY * step * 2, e.r);
+        if (block) {
+          var nx = e.x - block.x, ny = e.y - block.y, nl = Math.hypot(nx, ny) || 1;
+          nx /= nl; ny /= nl;
+          var sign = e.side >= 0 ? 1 : -1;
+          var tx = -ny * sign, ty = nx * sign;
+          /* 切向为主、朝目标为辅：既贴着石头滑，又不会越绕越远。 */
+          dirX = tx * .92 + dirX * .22; dirY = ty * .92 + dirY * .22;
+          var dl = Math.hypot(dirX, dirY) || 1; dirX /= dl; dirY /= dl;
+        }
+        e.x += dirX * step; e.y += dirY * step;
         if (e.sway) {
           e.phase += dt * 3;
-          var side = Math.sin(e.phase) * e.sway * dt * 6;
-          e.x += -dy / dist * side; e.y += dx / dist * side;
+          var swayStep = Math.sin(e.phase) * e.sway * dt * 6;
+          e.x += -dy / dist * swayStep; e.y += dx / dist * swayStep;
         }
         e.x = Math.max(e.r, Math.min(C.world.w - e.r, e.x));
         e.y = Math.max(e.r, Math.min(C.world.h - e.r, e.y));
+        /* 兜底：聚集、击退把敌人拖进石头时挤出来。 */
+        if (pushOutOfStones(e, e.r)) {
+          e.x = Math.max(e.r, Math.min(C.world.w - e.r, e.x));
+          e.y = Math.max(e.r, Math.min(C.world.h - e.r, e.y));
+        }
       }
       e.flash = Math.max(0, e.flash - dt * 6);
       if (Math.hypot(G.player.x - e.x, G.player.y - e.y) <= e.r + C.hero.r) {

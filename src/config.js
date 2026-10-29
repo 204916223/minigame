@@ -50,6 +50,15 @@
     /* speed 为像素/秒；r 用于贴墙与接触判定 */
     hero: { hp: 400, defense: 100, speed: 165, r: 12 },
 
+    /* 地图装饰：石头阻挡角色与敌人，草丛可穿行但会遮住角色。
+       石头之间留 gap 间距、离世界边界留 edge，避免把地图切成死角；
+       出生点周围 spawnClear 内不放石头，防止开局被围住。 */
+    props: {
+      stoneCount: 30, bushCount: 46,
+      stoneR: [17, 32], bushR: [17, 29],
+      gap: 28, edge: 44, spawnClear: 96
+    },
+
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
      openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔；
      levelEnemyGrowth：主角每升 1 级，场上和之后刷出的怪防御/血量/速度线性 +5% */

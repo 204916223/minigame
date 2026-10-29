@@ -48,7 +48,10 @@ function createGame(progress, seed = 1, wechat = false, initialStorage = {}) {
   }
   function frames(n) { for (let i = 0; i < n; i++) { clock += 1000 / 60; GP.update(1 / 60); } }
   function hold(x, y, n = 1) { GP.setMove(x, y); frames(n); GP.setMove(0, 0); }
+  /* 清空地图装饰：需要精确坐标的用例（位移、追击）不受随机石头影响；
+     装饰物本身的效果由 props.test.js 单独覆盖。 */
+  function clearProps() { G.props = []; G.stones = []; G.bushes = []; if (G.player) G.player.inBush = false; }
   const view = () => ({ x: G.cam.x, y: G.cam.y, w: PM.Config.width, h: PM.Config.height });
-  return { random: math.random, PM, C: PM.Config, R: PM.Rules, GP, G, target, at, view, hold, equip, take, frames, storage, events, generatedEvents, advanceClock: ms => { clock += ms; } };
+  return { random: math.random, PM, C: PM.Config, R: PM.Rules, GP, G, target, at, view, hold, clearProps, equip, take, frames, storage, events, generatedEvents, advanceClock: ms => { clock += ms; } };
 }
 module.exports = { createGame };
