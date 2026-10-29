@@ -23,7 +23,8 @@ function simulate({progress,level=0,seed=1,policy='bond',maxSeconds=1200}={}){
   if(G.state==='levelup'){const choice=pick(h,policy);if(!choice||!GP.applyChoice(choice))throw new Error('选卡死锁');}
   else{GP.update(1/60);frames++;maxEnemies=Math.max(maxEnemies,G.enemies.length);}
  }
- return {cleared:G.state==='cleared'&&G.result.stars>=1,outcome:G.state,stars:G.result?G.result.stars:0,seconds:Math.round(G.time/1000),wave:G.waveIndex+1,kills:G.player.kills,maxEnemies,
+ const generated={};h.generatedEvents.forEach(e=>{const n=generated[e.skill]||(generated[e.skill]={bursts:0,empty:0});n.bursts++;if(!e.hits)n.empty++;});
+ return {cleared:G.state==='cleared'&&G.result.stars>=1,outcome:G.state,stars:G.result?G.result.stars:0,seconds:Math.round(G.time/1000),wave:G.waveIndex+1,kills:G.player.kills,maxEnemies,generated,
   equipped:[...G.equippedOrder],progress:JSON.parse(JSON.stringify(G.progress))};
 }
 function spend(progress){const h=createGame(progress);for(let i=0;i<100;i++){let bought=false;for(const id of ['atk','hp','shield','def','haste'])bought=h.GP.buyMeta(id)||bought;if(!bought)break;}return JSON.parse(JSON.stringify(h.G.progress));}

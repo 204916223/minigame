@@ -40,7 +40,9 @@
         else if (inside(x, y, G.ui.pauseBack)) { GP.pause(false); GP.openLevelSelect(); }
         return;
       }
-      if (inside(x, y, G.ui.pause)) GP.pause(true);
+      if (inside(x, y, G.ui.pause)) { GP.pause(true); return; }
+      var slots = G.ui.skillSlots || [];
+      for (var slot = 0; slot < slots.length; slot++) if (inside(x, y, slots[slot])) { GP.selectSkill(slots[slot].id); return; }
     }
   }
   function bind() {

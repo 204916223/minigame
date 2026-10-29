@@ -31,8 +31,10 @@
   function bar(x, y, w, h, fraction, fill, label) { var c = ctx(); rounded(x, y, w, h, h / 2); c.fillStyle = 'rgba(11,18,36,.88)'; c.fill(); c.strokeStyle = '#2a3454'; c.lineWidth = 1; c.stroke();
     if (fraction > 0) { c.save(); rounded(x, y, w, h, h / 2); c.clip(); c.fillStyle = fill; c.fillRect(x, y, w * Math.min(1, fraction), h); c.restore(); }
     if (label) text(label, x + w / 2, y + h / 2 + 0.5, 10, '#fff', 'center', 'middle', 'bold'); }
-  function sprite(pattern, x, y, cell) { var c = ctx(), palette = C.palette, ox = x - pattern[0].length * cell / 2, oy = y - pattern.length * cell / 2;
-    for (var r = 0; r < pattern.length; r++) for (var col = 0; col < pattern[r].length; col++) { var color = palette[pattern[r][col]];
+  function percent(value) { return Number((value * 100).toFixed(1)); }
+  function sprite(pattern, x, y, cell, element) { var c = ctx(), palette = C.palette, ox = x - pattern[0].length * cell / 2, oy = y - pattern.length * cell / 2;
+    for (var r = 0; r < pattern.length; r++) for (var col = 0; col < pattern[r].length; col++) { var key = pattern[r][col], color = palette[key];
+      if (element && color && '03wks'.indexOf(key) < 0) color = 'GPR'.indexOf(key) >= 0 ? element.dark : element.color;
       if (color) { c.fillStyle = color; c.fillRect((ox + col * cell) | 0, (oy + r * cell) | 0, cell, cell); } } }
   function background(dt) { var c = ctx(); c.fillStyle = '#070a12'; c.fillRect(-20, -20, C.width + 40, C.height + 40); gridOffset = (gridOffset + dt * 40) % 40;
     c.strokeStyle = 'rgba(60,80,130,.10)'; c.lineWidth = 1;
@@ -43,8 +45,28 @@
     G.zones.forEach(function (z) { var fade = Math.max(0, 1 - z.age / z.life), color = z.color || '#a9e34b';
       c.globalAlpha = fade * .26; c.fillStyle = color; c.beginPath(); c.arc(z.x, z.y, z.r, 0, Math.PI * 2); c.fill();
       c.globalAlpha = fade * .7; c.strokeStyle = color; c.lineWidth = 1; c.stroke(); }); c.globalAlpha = 1;
-    G.booms.forEach(function (b) { var k = b.age / b.life, radius = b.r * (.5 + k * .9); c.globalAlpha = (1 - k) * .85; c.strokeStyle = b.color || '#ffcf6b'; c.lineWidth = 4;
-      c.beginPath(); c.arc(b.x, b.y, radius, 0, Math.PI * 2); c.stroke(); }); c.globalAlpha = 1;
+    G.telegraphs.forEach(function (t) {
+      var progress = Math.max(0, Math.min(1, (t.age - t.delay) / t.fillTime)), inner = t.r * (1 - progress);
+      c.save(); c.strokeStyle = t.color; c.fillStyle = t.color; c.lineWidth = 2;
+      c.globalAlpha = .9; c.beginPath(); c.arc(t.x, t.y, t.r, 0, Math.PI * 2); c.stroke();
+      if (progress > 0) {
+        // 反向内圆形成空心环，内半径逐渐归零；不用径向扇形进度。
+        c.globalAlpha = .32 + progress * .22; c.beginPath(); c.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+        c.arc(t.x, t.y, inner, 0, Math.PI * 2, true); c.fill();
+        c.globalAlpha = .85; c.lineWidth = 1; c.beginPath(); c.arc(t.x, t.y, inner, 0, Math.PI * 2); c.stroke();
+      }
+      c.globalAlpha = .9; text(R.skill(t.derived.id).name, t.x, t.y - t.r - 9, 11, t.color, 'center', 'middle');
+      c.restore();
+    });
+    G.booms.forEach(function (b) { var k = b.age / b.life, radius = b.r * (1 + k * .6), color = b.color || '#ffcf6b';
+      c.globalAlpha = Math.pow(1 - k, 2) * .4; c.fillStyle = color; c.beginPath(); c.arc(b.x, b.y, b.r, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = (1 - k) * .85; c.strokeStyle = color; c.lineWidth = 4;
+      c.beginPath(); c.arc(b.x, b.y, radius, 0, Math.PI * 2); c.stroke();
+      c.lineWidth = 2;
+      for (var i = 0; i < 8; i++) { var angle = i * Math.PI / 4;
+        c.beginPath(); c.moveTo(b.x + Math.cos(angle) * radius, b.y + Math.sin(angle) * radius);
+        c.lineTo(b.x + Math.cos(angle) * (radius + 8), b.y + Math.sin(angle) * (radius + 8)); c.stroke(); }
+    }); c.globalAlpha = 1;
     G.arcs.forEach(function (a) { var k = 1 - a.age / a.life; c.globalAlpha = k; c.strokeStyle = a.color || '#ffe066'; c.lineWidth = 2;
       c.beginPath(); c.moveTo(a.x1, a.y1); var steps = 4;
       for (var s = 1; s < steps; s++) { var t = s / steps;
@@ -52,9 +74,11 @@
       c.lineTo(a.x2, a.y2); c.stroke(); c.globalAlpha = 1; });
     G.sweeps.forEach(function (v) { c.globalAlpha = (1 - v.age / v.life) * .45; c.fillStyle = v.color; c.fillRect(0, C.height * (1 - v.age / v.life), C.width, 42); }); c.globalAlpha = 1;
     G.bullets.forEach(drawProjectile);
-    G.enemies.forEach(function (e) { sprite(C.sprites[e.spr], e.x, e.y, e.cell);
-      if (e.freezeT > 0) { c.globalAlpha = .5; c.fillStyle = '#74c0fc'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
-      else if (e.poisonT > 0) { c.globalAlpha = .3; c.fillStyle = '#a9e34b'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
+    G.enemies.forEach(function (e) { sprite(C.sprites[e.spr], e.x, e.y, e.cell, C.elements[e.el]);
+      if (e.boss) text(e.miniboss ? '小首领' : '最终首领', e.x, e.y - e.r - 16, 10, e.color, 'center', 'middle', 'bold');
+      // 状态只描边，保留身体元素色，避免冰冻/中毒时误认属性。
+      if (e.freezeT > 0 || e.poisonT > 0) { c.globalAlpha = .85; c.strokeStyle = e.freezeT > 0 ? C.elements.ice.color : C.elements.poison.color; c.lineWidth = 1;
+        c.strokeRect(e.x - e.r - 2, e.y - e.r - 2, e.r * 2 + 4, e.r * 2 + 4); c.globalAlpha = 1; }
       if (e.flash > 0) { c.globalAlpha = e.flash * .8; c.fillStyle = '#fff'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
       if (e.hp < e.maxhp) { var w = e.r * 2; c.fillStyle = '#0b1224'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w, 3); c.fillStyle = '#ff5d6c'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w * Math.max(0, e.hp / e.maxhp), 3); } });
     sprite(C.sprites.hero, C.hero.x, C.hero.y, 4); c.strokeStyle = 'rgba(143,233,255,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(C.hero.x, C.hero.y - 14);
@@ -69,7 +93,6 @@
     bar(10, top + 18, C.width - 20, 9, G.player.xp / G.player.xpv, '#7cff6b', '');
     text('Lv.' + G.player.lvl, 10, top + 43, 12, '#ffd166', 'left', 'middle', 'bold');
     text('金币 ' + G.coins, 10, top + 59, 10, '#ffd166', 'left', 'middle', 'bold');
-    if (G.player.damageMul > 1) text('伤害 +' + Math.round((G.player.damageMul - 1) * 100) + '%', C.width - 55, top + 59, 10, '#ffd166', 'right', 'middle', 'bold');
     var waveText = GP.isBossActive() ? '第 ' + (G.waveIndex + 1) + '/' + C.waveCount + ' 波  首领战' : '第 ' + (G.waveIndex + 1) + '/' + C.waveCount + ' 波  击杀 ' + G.waveKills + '/' + w.kills;
     text(waveText, 58, top + 43, 12, '#cdd6ee', 'left', 'middle', 'bold');
     text(formatTime(G.time), C.width - 55, top + 43, 12, '#8b95b3', 'right', 'middle');
@@ -79,20 +102,74 @@
   function skills() {
     var c = ctx(), G = GP.state, size = 62, gap = 10, y = Math.min(C.height - size - 12, P.safeBottom() - size - 12);
     var x0 = (C.width - (C.loadout.slots * size + (C.loadout.slots - 1) * gap)) / 2;
+    G.ui.skillSlots = [];
     for (var i = 0; i < C.loadout.slots; i++) {
       var x = x0 + i * (size + gap), id = G.equippedOrder[i], s = R.skill(id), state = s && G.skills[id];
-      rounded(x, y, size, size, 9); c.fillStyle = '#0e1526'; c.fill(); c.strokeStyle = s ? s.color : '#2c3a60'; c.stroke();
+      var focused = id === G.focusedSkill;
+      rounded(x, y, size, size, 9); c.fillStyle = focused ? '#1c2b3c' : '#0e1526'; c.fill(); c.strokeStyle = focused ? '#e8ecf7' : s ? s.color : '#2c3a60'; c.lineWidth = focused ? 2 : 1; c.stroke(); c.lineWidth = 1;
       if (!s) { text('空', x + size / 2, y + 28, 15, '#5b6787', 'center', 'middle'); continue; }
-      var d = state.derived;
+      G.ui.skillSlots.push({ x: x, y: y, w: size, h: size, id: id });
       text(s.icon, x + size / 2, y + 18, 19, s.color, 'center', 'middle');
       text(s.name, x + size / 2, y + 38, 11, '#e8ecf7', 'center', 'middle');
       text(s.persistent ? '常驻' : (Math.max(0, state.cd) / 1000).toFixed(1) + 's', x + size / 2, y + 53, 10, '#aeb8d2', 'center', 'middle');
     }
-    var counts = R.bonds(G), active = Object.keys(counts).filter(function (tag) { return C.factions[tag].bond && counts[tag] >= 2; });
     text('装备 ' + GP.ownedSkills() + '/6', x0, y - 8, 10, '#aeb8d2', 'left', 'middle');
-    var bondLabels = active.map(function (tag) { return C.factions[tag].name + (counts[tag] >= 4 ? '④' : '②'); });
-    text('羁绊 ' + (bondLabels.slice(0, 5).join(' ') || '暂无'), C.width / 2, 92, 10, '#aeb8d2', 'center', 'middle');
-    if (bondLabels.length > 5) text(bondLabels.slice(5).join(' '), C.width / 2, 106, 10, '#aeb8d2', 'center', 'middle');
+  }
+  function bondSidebar(top) {
+    var c = ctx(), G = GP.state, counts = R.bonds(G), unlocked = R.bondsUnlocked(G);
+    var tags = Object.keys(C.factions).filter(function (tag) { return C.factions[tag].bond && counts[tag]; });
+    var bottom = Math.min(C.height, P.safeBottom()) - 114, firstY = top + 36;
+    var step = Math.min(22, (bottom - firstY) / Math.max(1, tags.length - 1));
+    text('羁绊', 31, top, 11, '#cdd6ee', 'center', 'middle', 'bold');
+    text(unlocked ? '2 / 4 件生效' : GP.ownedSkills() + '/3 技能解锁', 31, top + 15, 8, '#8b95b3', 'center', 'middle');
+    tags.forEach(function (tag, index) {
+      var count = Math.min(4, counts[tag]), y = firstY + index * step, active = unlocked && count >= 2;
+      var color = active ? (count >= 4 ? '#ffd166' : '#ff784f') : '#71819f';
+      c.fillStyle = 'rgba(7,10,18,.78)'; c.beginPath(); c.arc(18, y, 9.5, 0, Math.PI * 2); c.fill();
+      // 四段各表示一个派系技能。圆环只显示羁绊进度，不使用任何技能冷却值。
+      c.lineWidth = 1.5; c.lineCap = 'butt';
+      for (var segment = 0; segment < 4; segment++) {
+        var start = -Math.PI / 2 + segment * Math.PI / 2 + .10;
+        c.strokeStyle = segment < count ? color : '#26324a';
+        c.beginPath(); c.arc(18, y, 9, start, start + Math.PI / 2 - .20); c.stroke();
+      }
+      text(C.factions[tag].name, 18, y - 1.5, 5, active ? color : '#aeb8d2', 'center', 'middle', 'bold');
+      text(count + '/4', 18, y + 4.5, 4, '#aeb8d2', 'center', 'middle');
+    }); c.lineWidth = 1;
+  }
+  function enhancementSidebar(top) {
+    var c = ctx(), G = GP.state, id = G.focusedSkill;
+    if (!G.skills[id] || !G.skills[id].owned) id = C.loadout.initial;
+    var s = R.skill(id), d = G.skills[id].derived, rows = [], x = C.width - 96;
+    function add(label, value, positive) { rows.push({ label: label, value: value, positive: positive !== false }); }
+    function signed(value, suffix) { return (value >= 0 ? '+' : '') + value + suffix; }
+    if (!s.persistent) add('冷却', '-' + percent(1 - d.cd / (s.cd * 1000)) + '%');
+    var damage = percent(d.dmg / (C.power.base * s.ratio) - 1);
+    add('伤害', signed(damage, '%'), damage >= 0);
+    if (d.count > (s.targets || 1)) add('多重', '+' + (d.count - (s.targets || 1)));
+    if (d.child) add('分裂', d.child + ' 目标');
+    if (d.pierce) add('穿透', '+' + d.pierce);
+    var range = percent(d.radius / (s.radius || C.combat.radius) - 1);
+    if (R.has(s, 'range') && range) add('范围', '+' + range + '%');
+    var duration = d.duration - (s.duration || C.combat.duration);
+    if (!s.persistent && R.has(s, 'duration') && duration) add('持续', '+' + duration.toFixed(1) + 's');
+    if (d.breach) add('破防', percent(d.breach) + '%');
+    if (d.slow) add('减速', percent(d.slow) + '%');
+    if (d.freezeChance) add('冰冻率', percent(d.freezeChance) + '%');
+    if (d.knock > C.combat.knock) add('击退', '+' + percent(d.knock / C.combat.knock - 1) + '%');
+    if (d.gather > 1) add('聚集', '+' + (d.gather - 1));
+    if (d.chain > (s.chains || 0)) add('传导', '+' + (d.chain - (s.chains || 0)));
+    if (d.bounce > (s.bounces || 0)) add('折射', '+' + (d.bounce - (s.bounces || 0)));
+    var height = 86 + rows.length * 22;
+    rounded(x, top - 9, 90, height, 8); c.fillStyle = 'rgba(7,10,18,.80)'; c.fill();
+    text('当前强化', x + 45, top, 11, '#e8ecf7', 'center', 'middle', 'bold');
+    text(s.name, x + 45, top + 20, 11, s.color, 'center', 'middle', 'bold');
+    rows.forEach(function (row, i) {
+      text(row.label, x + 7, top + 45 + i * 22, 10, '#aeb8d2', 'left', 'middle');
+      text(row.value, x + 83, top + 45 + i * 22, 10, row.positive ? '#e8ecf7' : '#ffb27d', 'right', 'middle');
+    });
+    text('含羁绊与局外', x + 45, top + 47 + rows.length * 22, 8, '#71819f', 'center', 'middle');
+    text('点底部技能切换', x + 45, top + 62 + rows.length * 22, 8, '#8b95b3', 'center', 'middle');
   }
   function menu() {
     var c = ctx(), G = GP.state, candidates = G.progress.candidates;
@@ -109,8 +186,11 @@
       text(v.tags.map(function (t) { return C.factions[t].name; }).join(' / '), rect.x + 12, rect.y + 32, 9, '#aeb8d2', 'left', 'middle');
       return rect;
     });
-    text('局内最多 6 技能（含普攻）；全屏技能满足条件后出现', 26, 505, 12, '#aeb8d2', 'left', 'middle');
-    G.ui.start = { x: 26, y: 533, w: 270, h: 46 }; button(G.ui.start, '冒 险 · 选 择 关 卡', '#33b3e6');
+    text('局内最多 6 技能（含普攻）；全屏技能满足条件后出现', 26, 493, 12, '#aeb8d2', 'left', 'middle');
+    text('怪物颜色代表元素，同属性攻击伤害减半', 26, 513, 12, '#aeb8d2', 'left', 'middle');
+    var ready = GP.canSelectLevel();
+    G.ui.start = { x: 26, y: 533, w: 270, h: 46 };
+    button(G.ui.start, ready ? '冒 险 · 选 择 关 卡' : '选满 7 个技能后选关（' + candidates.length + '/7）', ready ? '#33b3e6' : '#1b2438', ready ? '#05121c' : '#8b95b3');
     G.ui.shop = { x: 310, y: 533, w: 144, h: 46 }; button(G.ui.shop, '局 外 强 化', '#26324f', '#cdd6ee');
     if (G.toast.time > 0) text(G.toast.text, C.width / 2, 607, 12, '#ffd166', 'center', 'middle');
   }
@@ -134,7 +214,7 @@
     var c = ctx(), G = GP.state;
     c.fillStyle = 'rgba(6,9,17,.94)'; c.fillRect(0, 0, C.width, C.height);
     text('选择技能或强化', C.width / 2, 65, 24, '#ffd166', 'center', 'middle', 'bold');
-    text('装备 ' + GP.ownedSkills() + '/6 · 四选一 · 至少一个强化选项', C.width / 2, 96, 12, '#aeb8d2', 'center', 'middle');
+    text('第 ' + (G.choicesCompleted + 1) + ' 次选择 · 装备 ' + GP.ownedSkills() + '/6 · 至少一个强化选项', C.width / 2, 96, 12, '#aeb8d2', 'center', 'middle');
     G.ui.cards = G.choices.map(function (choice, i) {
       var card = choice.card, next = choice.level + 1, rect = { x: 26, y: 120 + i * 91, w: 428, h: 81, choice: choice };
       rounded(rect.x, rect.y, rect.w, rect.h, 10); c.fillStyle = '#16203a'; c.fill(); c.strokeStyle = card.color; c.stroke();
@@ -142,11 +222,13 @@
       text(card.unlock ? '新技能' : '强化', rect.x + rect.w - 14, rect.y + 19, 11, '#aeb8d2', 'right', 'middle');
       text(R.describe(card, next), rect.x + 14, rect.y + 43, 11, '#e8ecf7', 'left', 'middle');
       var warning = card.unlock && GP.ownedSkills() === 5 ? '占用最后一格，之后只出现强化' : card.cost || (card.unlock ? '独立获得技能，不附带任何强化' : '无伤害代价');
+      if (card.unlock === 'chain') warning = '扣防后伤害减半；' + (GP.ownedSkills() === 5 ? '占用最后一格' : '获取不附带强化');
       text(warning, rect.x + 14, rect.y + 64, 11, card.cost ? '#ffb27d' : '#7cff6b', 'left', 'middle');
       return rect;
     });
     if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 503, 12, '#8fe9ff', 'center', 'middle');
     G.ui.refresh = { x: 160, y: 526, w: 160, h: 40 }; button(G.ui.refresh, '刷新 ×' + G.refreshes, G.refreshes ? '#1b4b5f' : '#141c30', G.refreshes ? '#63e6be' : '#5b6787');
+    text('每 3 次选择保底新技能（有合资格候选时）；刷新不计次', C.width / 2, 580, 11, '#aeb8d2', 'center', 'middle');
     text('通过第 3 / 6 / 9 波各获得一次刷新', C.width / 2, 597, 11, '#aeb8d2', 'center', 'middle');
   }
   function metaScreen() { var c = ctx(), G = GP.state; c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height);
@@ -161,11 +243,11 @@
       rounded(28, y, 424, 76, 12); c.fillStyle = '#16203a'; c.fill(); c.strokeStyle = '#33456f'; c.lineWidth = 1; c.stroke();
       text(upg.name + '  Lv.' + lv + '/' + upg.max, 44, y + 22, 16, '#fff', 'left', 'middle', 'bold');
       text(upg.desc, 44, y + 42, 12, '#aeb8d2', 'left', 'middle');
-      var cur = upg.id === 'atk' ? '+' + Math.round(lv * upg.per * 100) + '% 伤害'
-        : upg.id === 'hp' ? '+' + (lv * upg.per) + ' HP'
+      var cur = upg.id === 'atk' ? (C.power.base * (1 + lv * upg.per)).toFixed(0) + ' 攻击（+' + percent(lv * upg.per) + '%）'
+        : upg.id === 'hp' ? (C.hero.hp * (1 + lv * upg.per)).toFixed(0) + ' HP（+' + percent(lv * upg.per) + '%）'
         : upg.id === 'shield' ? '+' + (lv * upg.per) + ' 护盾'
-        : upg.id === 'def' ? Math.round(Math.min(upg.cap, lv * upg.per) * 100) + '% 减伤'
-        : '-' + Math.round(Math.min(upg.cap, lv * upg.per) * 100) + '% 冷却';
+        : upg.id === 'def' ? (C.hero.defense * (1 + lv * upg.per)).toFixed(0) + ' 防御（+' + percent(lv * upg.per) + '%）'
+        : '-' + percent(Math.min(upg.cap, lv * upg.per)) + '% 冷却';
       text('当前 ' + cur, 44, y + 62, 12, '#7cff6b', 'left', 'middle');
       var btn = { x: 330, y: y + 28, w: 104, h: 32, id: upg.id };
       G.ui.metaRows.push(btn);
@@ -196,6 +278,7 @@
     if (G.state !== 'playing') G.toast.time = Math.max(0, G.toast.time - dt);
     if (G.state === 'menu') menu(); else if (G.state === 'levelselect') levelSelect(); else if (G.state === 'meta') metaScreen(); else {
       c.save(); if (G.shake > 0) c.translate((Math.random() - .5) * G.shake, (Math.random() - .5) * G.shake); battlefield(); c.restore(); hud(); skills();
+      var sidebarTop = Math.max(90, P.safeTop() + 84); bondSidebar(sidebarTop); enhancementSidebar(sidebarTop);
       if (G.toast.time > 0 && G.state === 'playing') text(G.toast.text, C.width / 2, Math.max(132, P.safeTop() + 116), 18, G.toast.color, 'center', 'middle', 'bold');
       if (G.state === 'levelup') levelUp(); else if (G.state === 'over') over(); else if (G.state === 'cleared') cleared(); else if (G.paused) pause();
     }

@@ -8,7 +8,8 @@ function createGame(progress, seed = 1, wechat = false) {
   const canvas = { width: 480, height: 640, getContext: () => ctx, getBoundingClientRect: () => ({ left: 0, top: 0, width: 480, height: 640 }), addEventListener() {} };
   const storage = {};
   if (progress !== undefined) storage.pixelMowProgress = JSON.stringify(progress);
-  const sandbox = { window: { devicePixelRatio: 1, addEventListener() {} }, document: { getElementById: () => canvas },
+  const events = {};
+  const sandbox = { window: { devicePixelRatio: 1, addEventListener: (name, callback) => { events[name] = callback; } }, document: { getElementById: () => canvas },
     Math: math, setTimeout: fn => fn(), performance: { now: () => clock }, localStorage: { getItem: k => storage[k] || null, setItem: (k, v) => { storage[k] = v; } } };
   if (wechat) {
     sandbox.GameGlobal = sandbox.window;
@@ -16,7 +17,12 @@ function createGame(progress, seed = 1, wechat = false) {
       getStorageSync: k => storage[k] || '', setStorageSync: (k,v) => { storage[k] = v; }, onTouchStart() {} };
   }
   vm.createContext(sandbox);
+  const generatedEvents = [];
   ['config', 'rules', 'combat', 'platform', 'audio', 'gameplay', 'renderer', 'input'].forEach(name => {
+    if (name === 'gameplay') {
+      const combat = sandbox.window.PixelMow.Combat, create = combat.create;
+      combat.create = (state, hooks) => create(state, Object.assign({}, hooks, { generated: event => generatedEvents.push(event) }));
+    }
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../src', name + '.js'), 'utf8'), sandbox, { filename: name + '.js' });
   });
   const PM = sandbox.window.PixelMow, GP = PM.Gameplay, G = GP.state;
@@ -38,6 +44,6 @@ function createGame(progress, seed = 1, wechat = false) {
     G.choices = [choice]; return GP.applyChoice(choice);
   }
   function frames(n) { for (let i = 0; i < n; i++) { clock += 1000 / 60; GP.update(1 / 60); } }
-  return { random: math.random, PM, C: PM.Config, R: PM.Rules, GP, G, target, equip, take, frames, storage, advanceClock: ms => { clock += ms; } };
+  return { random: math.random, PM, C: PM.Config, R: PM.Rules, GP, G, target, equip, take, frames, storage, events, generatedEvents, advanceClock: ms => { clock += ms; } };
 }
 module.exports = { createGame };

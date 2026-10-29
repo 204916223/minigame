@@ -15,11 +15,11 @@ test('开局仅普攻；七候选不自动装备；强化只属于已装备技�
   assert.ok(GP.choicePool().filter(ch => ch.card.unlock).every(ch => G.candidates.includes(ch.card.unlock)));
   assert.ok(GP.choicePool().filter(ch => !ch.card.unlock).every(ch => ch.card.skill === 'basic'));
 });
-test('获得风刃不送强化，基础一个目标，额外目标仅来自二件羁绊', () => {
+test('获得风刃不送强化，基础三个目标，两技能尚未解锁羁绊', () => {
   const h = run(); h.G.candidates = ['windblade']; h.take('get:windblade');
   assert.equal(h.GP.ownedSkills(), 2); assert.equal(Object.keys(h.G.cardLevels).length, 0);
-  assert.equal(h.G.skills.windblade.derived.child, 0); assert.equal(h.G.skills.windblade.derived.count, 2);
-  assert.equal(h.R.derive({ skills: { windblade: { owned: true } }, cardLevels: {}, player: {} }, 'windblade').count, 1);
+  assert.equal(h.G.skills.windblade.derived.child, 0); assert.equal(h.G.skills.windblade.derived.count, 3);
+  assert.equal(h.R.derive({ skills: { windblade: { owned: true } }, cardLevels: {}, player: {} }, 'windblade').count, 3);
 });
 test('四选一去重，初次升级及满槽都保证强化', () => {
   const h = run();
@@ -44,7 +44,7 @@ test('六种全屏均可达，满六槽不再出技能', () => {
   h.equip(['chain','lightning','waterball','geyser','laser']); assert.equal(h.R.eligible(h.G,'thunderstorm'),false);
 });
 test('羁绊数技能，四件替换两件，卡等级不计数，无标签不受益', () => {
-  const h=run();h.equip(['fireball']);assert.equal(h.R.bonus(h.R.bonds(h.G),'cooldown'),.05);
+  const h=run();h.equip(['fireball']);assert.equal(h.R.bondsUnlocked(h.G),false);assert.equal(h.R.derive(h.G,'fireball').cd,10000);
   h.G.cardLevels['basic:cooldown']=8;assert.equal(h.R.bonds(h.G).cooldown,2);
   h.equip(['fireball','meteor','windblade']);assert.equal(h.R.bonus(h.R.bonds(h.G),'cooldown'),.15);
   h.equip(['unknown']);assert.equal(h.R.derive(h.G,'unknown').cd,0);assert.equal(h.R.has(h.R.skill('unknown'),'cooldown'),false);
@@ -52,12 +52,12 @@ test('羁绊数技能，四件替换两件，卡等级不计数，无标签不�
 test('技能名与派系唯一标识；属性伤害不影响同元素其他技能', () => {
   const h=run();h.equip(['fireball','meteor']);const before=h.G.skills.meteor.derived.dmg;
   h.G.cardLevels['fireball:attribute']=3;h.GP.recompute();assert.equal(h.G.skills.meteor.derived.dmg,before);
-  assert.ok(Math.abs(h.G.skills.fireball.derived.dmg-16.25)<1e-9);
+  assert.ok(Math.abs(h.G.skills.fireball.derived.dmg-325)<1e-9);
   assert.equal(new Set(h.R.cards.map(c=>c.id)).size,h.R.cards.length);
 });
 test('强化加算、伤害代价计入、持续时间加秒', () => {
   const h=run();h.G.cardLevels={'basic:damage':2,'basic:attribute':1,'basic:cooldown':1};
-  assert.ok(Math.abs(h.R.derive(h.G,'basic').dmg-14.5)<1e-9);assert.equal(h.R.derive(h.G,'basic').cd,4750);
+  assert.ok(Math.abs(h.R.derive(h.G,'basic').dmg-290)<1e-9);assert.ok(Math.abs(h.R.derive(h.G,'basic').cd-1900)<1e-9);
   h.equip(['fireball']);h.G.cardLevels['fireball:duration']=2;assert.equal(h.R.derive(h.G,'fireball').duration,4);
 });
 test('卡达到上限不出现，羁绊另加，冷却遵守上下限', () => {
@@ -65,7 +65,7 @@ test('卡达到上限不出现，羁绊另加，冷却遵守上下限', () => {
   assert.ok(Math.abs(h.R.derive(h.G,'fireball').radius-55*1.65)<1e-9);
   assert.equal(h.GP.choicePool().some(ch=>ch.card.id==='fireball:range'),false);
   h.G.cardLevels['basic:cooldown']=10;h.G.player.haste=.5;assert.equal(h.R.derive(h.G,'basic').cd,1000);
-  h.equip(['laser']);h.G.cardLevels['laser:cooldown']=10;assert.equal(h.R.derive(h.G,'laser').cd,5000);
+  h.equip(['laser']);h.G.cardLevels['laser:cooldown']=10;assert.equal(h.R.derive(h.G,'laser').cd,10000);
 });
 test('分裂首张2、后续+1、卡上限5，羁绊不能自行开启', () => {
   const h=run();assert.equal(h.R.derive(h.G,'basic').child,0);
@@ -75,12 +75,12 @@ test('分裂首张2、后续+1、卡上限5，羁绊不能自行开启', () => {
 });
 test('减法防御、破防和数值边界', () => {
   const {R}=run();assert.equal(R.damage(100,10,0),90);assert.equal(R.damage(100,10,.05),90.5);
-  assert.equal(R.damage(2,10,0),0);assert.equal(R.damage(NaN,10,0),0);assert.equal(R.damage(Infinity,10,0),0);
+  assert.equal(R.damage(2,10,0),27);assert.equal(R.damage(NaN,10,0),0);assert.equal(R.damage(Infinity,10,0),0);
 });
-test('十波及末波501，批次封顶，波次衔接保留残怪', () => {
-  const h=run();assert.ok(h.C.levels.every(l=>l.waves.length===10&&l.waves[9].kills===501));
+test('十波及末波1005，批次封顶，波次衔接保留残怪', () => {
+  const h=run();assert.ok(h.C.levels.every(l=>l.waves.length===10&&l.waves[9].kills===1005));
   h.G.skills.basic.owned=false;h.C.levels[0].waves[0].interval=.01;h.G.spawnTimer=0;h.GP.update(1/60);
-  assert.ok(h.G.enemies.length>=3&&h.G.enemies.length<=5);h.frames(30);assert.equal(h.G.waveSpawned,20);
+  assert.ok(h.G.enemies.length>=3&&h.G.enemies.length<=5);h.frames(30);assert.equal(h.G.waveSpawned,30);
   const mob=h.G.enemies[0];h.frames(200);assert.equal(h.G.waveIndex,1);assert.ok(h.G.enemies.includes(mob));
 });
 test('连升逐次选择，刷新不消耗升级，拒绝旧选项', () => {
@@ -90,7 +90,7 @@ test('连升逐次选择，刷新不消耗升级，拒绝旧选项', () => {
   h.GP.applyChoice(h.G.choices[0]);assert.equal(h.G.state,'playing');assert.equal(h.GP.applyChoice(choice),false);
 });
 test('末波同帧清场直接结算、不弹升级', () => {
-  const h=run();h.G.waveIndex=9;h.G.waveSpawned=501;h.G.player.xp=h.G.player.xpv-1;
+  const h=run();h.G.waveIndex=9;h.G.waveSpawned=1005;h.G.player.xp=h.G.player.xpv-1;
   h.target(200,300,{hp:1,xp:1});h.target(205,300,{hp:1,xp:1});
   h.GP.combat.area(200,300,{...h.G.skills.basic.derived,radius:50},false);h.GP.update(1/60);
   assert.equal(h.G.state,'cleared');assert.equal(h.G.pendingLevelUps,0);assert.equal(h.G.choices.length,0);assert.equal(h.G.player.kills,2);
@@ -109,9 +109,9 @@ test('旧存档清洗保留金币养成、候选去重、迁移幂等、局外�
   h.GP.toggleCandidate('laser');assert.ok(h.G.progress.candidates.includes('laser'));h.GP.resetRun(0);assert.equal(h.GP.toggleCandidate('laser'),false);
 });
 test('局外购买扣费与金币结算不重复', () => {
-  const h=run();h.G.progress.coins=100;const cost=h.GP.metaCost('atk');assert.equal(h.GP.buyMeta('atk'),true);
-  assert.equal(h.G.progress.meta.atk,1);assert.equal(h.G.progress.coins,100-cost);
-  h.G.coins=7;h.GP.bankCoins();h.GP.bankCoins();assert.equal(h.G.progress.coins,107-cost);
+  const h=run();h.G.progress.coins=2000;const cost=h.GP.metaCost('atk');assert.equal(h.GP.buyMeta('atk'),true);
+  assert.equal(h.G.progress.meta.atk,1);assert.equal(h.G.progress.coins,2000-cost);
+  h.G.coins=7;h.GP.bankCoins();h.GP.bankCoins();assert.equal(h.G.progress.coins,2007-cost);
 });
 test('不可知域常驻单层，不出持续强化，但计入持续羁绊',()=>{
  const h=run();h.equip(['poisonbottle','miasma','unknown']);

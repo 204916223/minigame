@@ -11,12 +11,13 @@
     owned(state).forEach(function (s) { s.tags.forEach(function (tag) { result[tag] = (result[tag] || 0) + 1; }); });
     return result;
   }
+  function bondsUnlocked(state) { return owned(state).length >= C.bondUnlockSkills; }
   function bonus(counts, tag) {
     var f = C.factions[tag], n = counts[tag] || 0;
     return f.bond ? (n >= 4 ? f.bond[1] : n >= 2 ? f.bond[0] : 0) : 0;
   }
   function baseCount(s, tag) {
-    return tag === 'multi' || tag === 'gather' ? 1 : tag === 'bounce' ? s.bounces || 0 : tag === 'chain' ? s.chains || 0 : 0;
+    return tag === 'multi' ? s.targets || 1 : tag === 'gather' ? 1 : tag === 'bounce' ? s.bounces || 0 : tag === 'chain' ? s.chains || 0 : 0;
   }
   function cardMax(s, tag) {
     var f = C.factions[tag];
@@ -48,7 +49,7 @@
     }).map(function (c) { return { card: c, level: state.cardLevels[c.id] || 0 }; });
   }
   function derive(state, id) {
-    var s = skill(id), counts = bonds(state), tax = 0;
+    var s = skill(id), counts = bondsUnlocked(state) ? bonds(state) : {}, tax = 0;
     function level(tag) { return state.cardLevels[id + ':' + tag] || 0; }
     function amount(tag) {
       if (!has(s, tag)) return 0;
@@ -63,18 +64,21 @@
     return { id: id, dmg: attack, cd: s.persistent ? 0 : Math.max(s.minCd, s.cd * (1 - amount('cooldown') - (state.player.haste || 0))) * 1000,
       count: has(s, 'multi') ? amount('multi') : 1, child: amount('split'), pierce: amount('pierce'),
       radius: (s.radius || C.combat.radius) * (1 + amount('range')), duration: has(s, 'duration') ? (s.duration || C.combat.duration) + amount('duration') : 0,
-      breach: amount('breach'), slow: amount('slow'), freezeChance: amount('freeze'), freeze: C.combat.freeze,
+      breach: amount('breach'), slow: amount('slow'), freezeChance: has(s, 'freeze') ? Math.min(1, C.combat.freezeChance + amount('freeze')) : 0, freeze: C.combat.freeze,
       knock: has(s, 'knock') ? C.combat.knock * (1 + amount('knock')) : 0, gather: amount('gather'),
       chain: amount('chain'), chainRange: C.combat.chainRange * (1 + amount('range')), bounce: amount('bounce'),
       speed: C.combat.projectileSpeed, r: s.area === 'area' ? 7 : 4, shape: s.el === 'fire' ? 'orb' : s.el === 'ice' ? 'shard' : s.el === 'poison' ? 'blob' : s.el === 'wind' ? 'gale' : 'bolt' };
   }
-  function damage(attack, defense, breach) {
+  function damage(attack, defense, breach, level, wave) {
     if (!isFinite(attack) || !isFinite(defense) || !isFinite(breach)) return 0;
-    return Math.max(0, attack - Math.max(0, defense) * (1 - Math.max(0, Math.min(1, breach))));
+    var raw = attack - Math.max(0, defense) * (1 - Math.max(0, Math.min(1, breach)));
+    // 攻防相等也触发保底；容忍加算产生的微小浮点误差。
+    return raw <= 1e-9 ? 25 + (level || 1) + (wave || 1) : raw;
   }
   function describe(card, level) {
     var s = skill(card.skill);
-    if (card.unlock) return (s.mode === 'fullscreen' ? '全屏技能，占 1 格' : '仅获得技能，不附送强化') + (s.id === 'unknown' ? '；此后禁选风系' : '');
+    if (card.unlock) return s.persistent ? '常驻单层中毒，占 1 格；此后禁选风系' :
+      '攻击 ' + C.power.base * s.ratio + ' · 冷却 ' + s.cd + 's（最短 ' + s.minCd + 's）· ' + (s.mode === 'fullscreen' ? '全屏' : (s.targets || 1) + ' 目标');
     var tag = card.tag, f = C.factions[tag], value = Math.min(level, card.max) * f.step;
     if (tag === 'split') return '命中后分裂 ' + (level + 1) + ' 个半伤子弹，最多一代';
     if (tag === 'duration') return '本技能持续时间 +' + value.toFixed(1) + ' 秒';
@@ -92,7 +96,7 @@
     out.coins = Number.isFinite(p.coins) ? Math.max(0, p.coins) : 0;
     C.meta.upgrades.forEach(function (u) {
       var n = p.meta && p.meta[u.id];
-      // 本次保留旧养成价格及上限；迁移仅清洗数据，不重复发放补偿。
+      // 保留已购等级，按当前上限清洗；成长百分比从配置读取。
       out.meta[u.id] = Number.isFinite(n) ? Math.max(0, Math.min(u.max, Math.floor(n))) : 0;
     });
     var ids = Array.isArray(p.candidates) ? p.candidates : C.loadout.defaults;
@@ -102,6 +106,6 @@
     });
     return out;
   }
-  PM.Rules = { skill: skill, has: has, cards: cards, card: function (id) { return cardMap[id]; }, owned: owned, bonds: bonds,
+  PM.Rules = { skill: skill, has: has, cards: cards, card: function (id) { return cardMap[id]; }, owned: owned, bonds: bonds, bondsUnlocked: bondsUnlocked,
     bonus: bonus, cardMax: cardMax, eligible: eligible, pool: pool, derive: derive, damage: damage, describe: describe, progress: progress };
 })(typeof GameGlobal !== 'undefined' ? GameGlobal : window);

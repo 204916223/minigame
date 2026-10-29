@@ -9,9 +9,14 @@
   function create(G, hooks) {
     function onField(e) { return !e.dead && e.hp > 0 && e.y >= C.combat.enterY; }
     function targets() { return G.enemies.filter(onField); }
+    function damageAmount(e, attack, d) {
+      var source = R.skill(d.id), sameElement = source && source.el === e.el;
+      return R.damage(attack, e.def || 0, d.breach || 0, G.player.lvl, G.waveIndex + 1) *
+        (source && source.damageScale !== undefined ? source.damageScale : 1) * (sameElement ? .5 : 1);
+    }
     function damageEnemy(e, attack, d, scale) {
       if (!onField(e)) return 0;
-      var damage = R.damage(attack, e.def || 0, d.breach || 0) * (scale === undefined ? 1 : scale);
+      var damage = damageAmount(e, attack, d) * (scale === undefined ? 1 : scale);
       if (!isFinite(damage)) return 0;
       e.hp -= damage; e.flash = damage > 0 ? 1 : e.flash;
       if (e.hp <= 0) hooks.kill(e, d.id);
@@ -38,19 +43,53 @@
       affected.forEach(function (e) { hit(e, d); });
       boom(x, y, d.radius, s.color);
       if (leaveZone && d.duration) G.zones.push({ x: x, y: y, r: d.radius, color: s.color, age: 0, life: d.duration, pending: 0, derived: d });
+      return affected.length;
     }
-    function densest(radius, excluded) {
-      var pool = targets().filter(function (e) { return !excluded[e.id]; });
+    function generatedPoint(e, seconds) {
+      var frozen = Math.min(seconds, Math.max(0, e.freezeT || 0)), moving = seconds - frozen;
+      var slowed = Math.max(0, Math.min(seconds, e.slowT || 0) - frozen);
+      var x = e.x + (e.sway ? 2 * e.sway * (Math.cos(e.phase) - Math.cos(e.phase + moving * 3)) : 0);
+      return { x: Math.max(12, Math.min(C.width - 12, x)),
+        y: e.y + e.spd * (moving - slowed * Math.min(.9, e.slow || 0)) };
+    }
+    function reservedDamage(e) {
+      var pending = G.telegraphs.reduce(function (sum, t) {
+        var point = generatedPoint(e, Math.max(0, t.delay + t.fillTime - t.age));
+        if (Math.hypot(point.x - t.x, point.y - t.y) > t.r + e.r) return sum;
+        return sum + damageAmount(e, t.derived.dmg, t.derived);
+      }, 0);
+      // 已发出的弹道若预计先击杀目标，生成技优先寻找其他敌人。
+      return G.bullets.reduce(function (sum, b) {
+        if (b.dead || b.hitIds[e.id] || b.excluded === e.id) return sum;
+        var seconds = Math.min(b.life, C.combat.generateDelay + C.combat.generateFill), point;
+        if (b.area === 'area') {
+          var arrival = Math.hypot(b.end.x - b.x, b.end.y - b.y) / Math.hypot(b.vx, b.vy);
+          if (arrival > seconds) return sum;
+          point = generatedPoint(e, arrival);
+          if (Math.hypot(point.x - b.end.x, point.y - b.end.y) > b.derived.radius + e.r) return sum;
+        } else {
+          if (b.targetId !== e.id) return sum;
+          point = generatedPoint(e, seconds);
+          if (distSegment({x:0,y:0}, {x:b.x-e.x,y:b.y-e.y},
+            {x:b.x+b.vx*seconds-point.x,y:b.y+b.vy*seconds-point.y}) > b.r + e.r) return sum;
+        }
+        return sum + damageAmount(e, b.damage, b.derived);
+      }, pending);
+    }
+    function densest(radius, excluded, delay) {
+      var pool = targets().filter(function (e) { return !excluded[e.id] && (!delay || e.hp > reservedDamage(e)); }).map(function (e) {
+        return { enemy: e, point: delay ? generatedPoint(e, delay) : e };
+      }).filter(function (t) { return t.point.y < C.hero.y - 8; });
       if (!pool.length) return null;
       var best = pool[0], score = -1;
-      // 固定 12×16 候选点；落点吸附到候选点附近的敌人脚下。
+      // 固定 12×16 候选点；生成技按爆发时的预估位置选密集区。
       for (var row = 0; row < 16; row++) for (var col = 0; col < 12; col++) {
         var x = (col + .5) * C.width / 12, y = C.combat.enterY + row * (C.hero.y - C.combat.enterY) / 16;
         var count = 0, nearest = null, distance = Infinity;
-        pool.forEach(function (e) { var dist = Math.hypot(e.x - x, e.y - y); if (dist <= radius) count++; if (dist < distance) { distance = dist; nearest = e; } });
+        pool.forEach(function (t) { var dist = Math.hypot(t.point.x - x, t.point.y - y); if (dist <= radius) count++; if (dist < distance) { distance = dist; nearest = t; } });
         if (count > score) { score = count; best = nearest; }
       }
-      return best;
+      return best.enemy;
     }
     function projectile(d, target, origin, child, excluded) {
       var s = R.skill(d.id), angle = Math.atan2(target.y - origin.y, target.x - origin.x);
@@ -96,8 +135,14 @@
         if (!s.persistent) { G.sweeps.push({ color: s.color, age: 0, life: .65 }); hooks.sound('boom'); }
       } else if (s.id === 'laser') laser(d);
       else if (s.mode === 'generate') {
-        var used = {};
-        for (var i = 0; i < d.count; i++) { var t = densest(d.radius, used); if (!t) break; used[t.id] = true; area(t.x, t.y, d, true); }
+        var used = {}, generated = 0, delay = C.combat.generateDelay + C.combat.generateFill;
+        for (var i = 0; i < d.count; i++) {
+          var t = densest(d.radius, used, delay); if (!t) break; used[t.id] = true;
+          var point = generatedPoint(t, delay); generated++;
+          G.telegraphs.push({ x: point.x, y: point.y, r: d.radius, color: s.color, age: 0,
+            delay: C.combat.generateDelay, fillTime: C.combat.generateFill, derived: Object.assign({}, d) });
+        }
+        if (!generated) return false;
       } else if (s.id === 'chain') {
         pool.slice(0, d.count).forEach(function (t) {
           var reached = {}; reached[t.id] = true;
@@ -135,6 +180,14 @@
         }
       });
       G.zones = G.zones.filter(function (z) { return z.age < z.life; });
+      // 固定落点：圆圈等待 -> 由外向内填充 -> 爆发；生成的区域从爆发后开始计时。
+      G.telegraphs = G.telegraphs.filter(function (t) {
+        t.age += dt;
+        if (t.age + 1e-9 < t.delay + t.fillTime) return true;
+        var hits = area(t.x, t.y, t.derived, true); hooks.sound('boom');
+        if (hooks.generated) hooks.generated({ skill: t.derived.id, x: t.x, y: t.y, hits: hits });
+        return false;
+      });
     }
     function statuses(e, dt) {
       Object.keys(e.dots || {}).forEach(function (id) {

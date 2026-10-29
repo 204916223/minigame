@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生成技能 · 特效预览</title>
+<style>
+  * { box-sizing: border-box; } body { margin: 0; background: #070a12; color: #e8ecf7; font: 14px system-ui, sans-serif; }
+  main { display: flex; justify-content: center; align-items: flex-start; gap: 28px; padding: 24px; }
+  aside { width: 280px; } h1 { font-size: 24px; } p { color: #aeb8d2; line-height: 1.7; }
+  canvas { width: 450px; height: 600px; border: 1px solid #33456f; border-radius: 12px; }
+  select, button { width: 100%; margin: 4px 0; padding: 10px; border: 1px solid #33456f; border-radius: 8px; color: #e8ecf7; background: #16203a; font: inherit; }
+  button { cursor: pointer; } button:hover { border-color: #8fe9ff; } output { display: block; margin-top: 16px; line-height: 1.8; color: #8fe9ff; }
+  @media (max-width: 800px) { main { flex-direction: column; align-items: center; } aside { width: min(450px, 100%); } canvas { width: min(450px, 100%); height: auto; aspect-ratio: 3/4; } }
+</style>
+<main>
+  <aside>
+    <h1>生成技能 · 特效预览</h1>
+    <p>使用正式战斗与渲染代码。靶子静止，关闭自动施放，便于逐阶段检查。</p>
+    <label for="skill">技能</label><select id="skill"></select>
+    <label for="element">敌人属性</label><select id="element"><option value="mixed">展示七种元素</option></select>
+    <button data-time="0">圆圈 · 0.00 秒</button>
+    <button data-time="0.5">开始填充 · 0.50 秒</button>
+    <button data-time="0.75">向内填充 · 0.75 秒</button>
+    <button data-time="1">爆发 · 1.00 秒</button>
+    <button id="play">播放完整过程</button>
+    <button id="layout">左右布局 · 满装备预览</button>
+    <output id="status" aria-live="polite"></output>
+    <p>独立预览，不读取或写入游戏存档。</p>
+  </aside>
+  <canvas id="game" aria-label="生成技能预览画布"></canvas>
+</main>
+<script src="../src/config.js?v=21"></script><script src="../src/rules.js?v=21"></script>
+<script src="../src/combat.js?v=21"></script><script src="../src/platform.js?v=21"></script><script src="../src/audio.js?v=21"></script>
+<script>
+  PixelMow.Platform.loadProgress = function () { return {}; };
+  PixelMow.Platform.saveProgress = function () {};
+</script>
+<script src="../src/gameplay.js?v=21"></script><script src="../src/renderer.js?v=21"></script><script src="../src/input.js?v=21"></script>
+<script>
+  var PM = PixelMow, GP = PM.Gameplay, G = GP.state, select = document.getElementById('skill'), element = document.getElementById('element');
+  var elapsed = 0, playing = false, layoutMode = false, last = 0;
+  PM.Config.skills.filter(function (s) { return s.mode === 'generate'; }).forEach(function (s) {
+    var option = document.createElement('option'); option.value = s.id; option.textContent = s.name; select.appendChild(option);
+  });
+  Object.keys(PM.Config.elements).forEach(function (id) {
+    var el = PM.Config.elements[id], option = document.createElement('option'); option.value = id; option.textContent = el.name; element.appendChild(option);
+  });
+  select.value = 'meteor'; PM.Platform.setupCanvas(); PM.Input.bind();
+  function reset() {
+    playing = false; layoutMode = false; elapsed = 0; GP.resetRun(0); G.toast.time = 0;
+    G.skills[select.value].owned = true; G.equippedOrder.push(select.value); GP.recompute();
+    [[170,250],[240,250],[310,250],[170,330],[240,330],[310,330],[240,410]].forEach(function (point, i) {
+      var el = element.value === 'mixed' ? Object.keys(PM.Config.elements)[i] : element.value;
+      var e = Object.assign({}, PM.Config.enemyTypes.grunt, {id:i+1, el:el, color:PM.Config.elements[el].color, x:point[0], y:point[1], spd:0, hp:1000, maxhp:1000, flash:0, freezeT:0, poisonT:0, dead:false});
+      G.enemies.push(e);
+    });
+    GP.combat.cast(G.skills[select.value].derived);
+  }
+  function step(dt) {
+    elapsed += dt; G.time = elapsed * 1000;
+    G.booms.forEach(function (b) { b.age += dt; }); G.booms = G.booms.filter(function (b) { return b.age < b.life; });
+    G.enemies.forEach(function (e) { e.flash = Math.max(0,e.flash - dt * 6); });
+    GP.combat.update(dt);
+  }
+  function draw() {
+    PM.Renderer.render(0);
+    document.getElementById('status').textContent = '时间 ' + elapsed.toFixed(2) + ' 秒 · 预警 ' + G.telegraphs.length + ' 个 · 累计伤害 ' +
+      G.enemies.reduce(function (sum,e) { return sum + e.maxhp - e.hp; },0).toFixed(1);
+  }
+  function stage(time) { reset(); while (elapsed < time - 1e-9) step(Math.min(1/60,time-elapsed)); draw(); }
+  document.querySelectorAll('[data-time]').forEach(function (button) { button.onclick = function () { stage(Number(button.dataset.time)); }; });
+  select.onchange = function () { stage(0); };
+  element.onchange = function () { stage(0); };
+  document.getElementById('play').onclick = function () { reset(); playing = true; last = performance.now(); };
+  document.getElementById('layout').onclick = function () {
+    reset(); layoutMode = true; G.telegraphs = [];
+    G.equippedOrder = ['basic','chain','fireball','windblade','icecone','waterball'];
+    PM.Config.skills.forEach(function (s) { G.skills[s.id].owned = G.equippedOrder.indexOf(s.id) >= 0; });
+    G.cardLevels = {'windblade:cooldown':2,'windblade:damage':1,'windblade:attribute':1,'windblade:split':1,'windblade:multi':1};
+    G.focusedSkill = 'windblade'; GP.recompute(); draw();
+  };
+  function loop(now) {
+    if (playing) { step(Math.min(.05,(now-last)/1000)); draw(); if (elapsed >= 2) playing = false; }
+    else if (layoutMode) draw();
+    last = now; requestAnimationFrame(loop);
+  }
+  window.addEventListener('resize',function () { PM.Platform.setupCanvas(); draw(); });
+  stage(0); requestAnimationFrame(loop);
+</script>
+</html>
