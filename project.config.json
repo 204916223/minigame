@@ -1,0 +1,15 @@
+{
+  "description": "像素割草关卡制微信小游戏",
+  "appid": "touristappid",
+  "projectname": "pixel-mow",
+  "compileType": "game",
+  "libVersion": "3.5.7",
+  "packOptions": { "ignore": [
+    { "type": "file", "value": "index.html" },
+    { "type": "file", "value": "README.md" },
+    { "type": "folder", "value": "tests" },
+    { "type": "file", "value": "package.json" }
+  ]},
+  "setting": { "es6": true, "enhance": true, "minified": true, "postcss": false, "urlCheck": false },
+  "condition": {}
+}
