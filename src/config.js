@@ -59,6 +59,19 @@
       gap: 28, edge: 44, spawnClear: 96
     },
 
+    /* 宝箱：外观与体积完全统一，开箱前分辨不出增益还是减益。
+       三项增益与三项减益同权重、同幅度；豪华奖励权重极低，直接通关本关。
+       刷新间隔取 22~34 秒、同屏最多 2 只、26 秒后消失——刷新率刻意压得很低。 */
+    chest: {
+      firstDelay: 12,
+      interval: [22, 34],
+      max: 2, life: 26,
+      r: 11, pickupR: 16,
+      /* 增益与减益用同一组幅度，只是符号相反 */
+      step: { speed: .25, haste: .20, damage: .25 },
+      weight: { speedUp: 1, hasteUp: 1, damageUp: 1, speedDown: 1, hasteDown: 1, damageDown: 1, luxury: .6667 }
+    },
+
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
      openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔；
      levelEnemyGrowth：主角每升 1 级，场上和之后刷出的怪防御/血量/速度线性 +5% */

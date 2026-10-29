@@ -35,6 +35,33 @@
     for (var r = 0; r < pattern.length; r++) for (var col = 0; col < pattern[r].length; col++) { var key = pattern[r][col], color = palette[key];
       if (element && color && '03wks'.indexOf(key) < 0) color = 'GPR'.indexOf(key) >= 0 ? element.dark : element.color;
       if (color) { c.fillStyle = color; c.fillRect((ox + col * cell) | 0, (oy + r * cell) | 0, cell, cell); } } }
+  /* 宝箱：所有宝箱外观与体积完全一致（增益/减益开箱前不可分辨）。
+     落地时由小放大，过期前 3 秒闪烁；只画形状，不透露内容。 */
+  function drawChests(c, cam, time) {
+    var list = GP.state.chests, t = (time || 0) / 1000;
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i];
+      if (!inViewRect(b, cam, 40)) continue;
+      var bob = Math.sin(t * 2.4 + b.phase) * 2.2, left = b.life - b.age;
+      var fade = left < 3 ? .35 + .65 * Math.abs(Math.sin(t * 8)) : 1;
+      var grow = Math.min(1, b.age / .35), k = .35 + .65 * (1 - Math.pow(1 - grow, 2));
+      c.save(); c.translate(b.x, b.y + bob); c.scale(k, k); c.globalAlpha = fade;
+      /* 光晕：只表示“这里有个可以捡的东西”，不暗示好坏 */
+      c.fillStyle = 'rgba(255,206,110,' + (0.05 + 0.03 * Math.sin(t * 3 + b.phase)).toFixed(3) + ')';
+      c.beginPath(); c.arc(0, 2, b.r * 1.7, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(0,0,0,.4)'; c.beginPath(); c.ellipse(0, b.r * 1.05, b.r * 1.1, b.r * .34, 0, 0, Math.PI * 2); c.fill();
+      var w = b.r * 2.1, h = b.r * 1.6, x = -w / 2, y = -h / 2;
+      c.fillStyle = '#4f331a'; rounded(x, y, w, h, 3); c.fill();
+      c.fillStyle = '#96622f'; rounded(x + 2, y + 2, w - 4, h - 4, 2); c.fill();
+      c.fillStyle = '#b0783a'; c.fillRect(x + 2, y + 2, w - 4, h * .42);
+      c.fillStyle = '#6a4522'; c.fillRect(x + 2, y + h * .42, w - 4, 2);
+      c.fillStyle = '#ffd166'; c.fillRect(-3, y + h * .40, 6, 8);
+      c.fillStyle = '#3a2410'; c.fillRect(-1, y + h * .44, 2, 4);
+      c.fillStyle = 'rgba(255,240,200,.30)'; c.fillRect(x + 3, y + 3, w - 6, 2);
+      c.restore();
+    }
+    c.globalAlpha = 1;
+  }
   function background(dt) { var c = ctx(); c.fillStyle = '#05070d'; c.fillRect(0, 0, C.width, C.height); }
   /* 世界层：只画镜头可见的网格；世界矩形外保持底色，读作地图边缘。 */
   function worldGround(c, cam) {
@@ -118,6 +145,7 @@
     c.save(); c.translate(-cam.x, -cam.y);
     worldGround(c, cam);
     drawStones(c, cam);
+    drawChests(c, cam, G.time);
     G.zones.forEach(function (z) { var fade = Math.max(0, 1 - z.age / z.life), color = z.color || '#a9e34b';
       c.globalAlpha = fade * .26; c.fillStyle = color; c.beginPath(); c.arc(z.x, z.y, z.r, 0, Math.PI * 2); c.fill();
       c.globalAlpha = fade * .7; c.strokeStyle = color; c.lineWidth = 1; c.stroke(); }); c.globalAlpha = 1;
@@ -380,7 +408,10 @@
     text('本局金币 +' + (G.lastCoins || 0) + ' · 总计 ' + (G.progress.coins || 0), C.width / 2, 284, 13, '#ffd166', 'center', 'middle');
     G.ui.retry = { x: 150, y: 345, w: 180, h: 52 }; button(G.ui.retry, '重 试 本 关', '#e6495a', '#2a0308'); G.ui.back = { x: 170, y: 420, w: 140, h: 42 }; button(G.ui.back, '关卡选择', '#26324f', '#cdd6ee'); }
   function cleared() { var c = ctx(), G = GP.state, result = G.result; c.fillStyle = 'rgba(6,9,17,.92)'; c.fillRect(0, 0, C.width, C.height); text('关 卡 通 过', C.width / 2, 150, 34, '#7cff6b', 'center', 'middle', 'bold');
-    drawStars(C.width / 2, 235, result.stars, result.flawless, 42); text('剩余生命 ' + Math.round(result.ratio * 100) + '%', C.width / 2, 300, 17, '#e8ecf7', 'center', 'middle');
+    drawStars(C.width / 2, 235, result.stars, result.flawless, 42);
+    /* 豪华奖励不看剩余生命，直接三星；这里不能再显示生命比例，否则与三星自相矛盾。 */
+    if (result.luxury) text('豪华奖励 · 直接通关', C.width / 2, 300, 17, '#ffd166', 'center', 'middle', 'bold');
+    else text('剩余生命 ' + Math.round(result.ratio * 100) + '%', C.width / 2, 300, 17, '#e8ecf7', 'center', 'middle');
     text('本局金币 +' + (result.coins || 0) + ' · 总计 ' + (G.progress.coins || 0), C.width / 2, 360, 13, '#ffd166', 'center', 'middle');
     if (result.flawless) text('完美通关 · 满血三星边框', C.width / 2, 330, 14, '#fff3a3', 'center', 'middle', 'bold');
     else if (!result.stars) text('需要剩余生命大于 30% 才能解锁下一关', C.width / 2, 330, 13, '#ff8787', 'center', 'middle');

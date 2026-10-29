@@ -4,3 +4,4 @@ node_modules/
 project.private.config.json
 dist/
 dist.sha256
+/.workbuddy/

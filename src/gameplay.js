@@ -18,7 +18,7 @@
       state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0,
       player: {}, move: { x: 0, y: 0 }, cam: { x: 0, y: 0 }, skills: {}, cardLevels: {}, cardOrder: [],
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
-      props: [], stones: [], bushes: [],
+      props: [], stones: [], bushes: [], chests: [], chestTimer: 0,
       spawnTimer: 0, shake: 0, damageFlash: 0,
       waveIndex: 0, waveKills: 0, waveSpawned: 0, bossSpawned: false,
       waveLead: 0, pendingLevelUps: 0, refreshes: 0, coins: 0, lastCoins: 0, metaReturn: null,
@@ -81,7 +81,9 @@
     var hastePct = Math.min(upgHaste.cap, (meta.haste || 0) * upgHaste.per);
     G.player = { x: C.world.w / 2, y: C.world.h / 2, hp: maxhp, maxhp: maxhp, shield: shield, defense: defense,
       lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2, walk: 0,
-      starBonus: totalStars, damageBonus: (starMul - 1) + (atkMul - 1), haste: hastePct };
+      starBonus: totalStars, damageBonus: (starMul - 1) + (atkMul - 1), haste: hastePct,
+      /* 宝箱修正：均为本局内的累加值，与局外加成分开存放，互不污染 */
+      speedMod: 0, hasteMod: 0, damageMod: 0 };
     G.move = { x: 0, y: 0 }; G.joy = null; clampCamera();    G.coins = 0; G.lastCoins = 0;
     G.cardLevels = {}; G.cardOrder = [];
     G.candidates = isEndless() ? SKILLS.filter(function (s) { return s.id !== C.loadout.initial; }).map(function (s) { return s.id; }) : G.progress.candidates.slice();
@@ -92,6 +94,7 @@
     G.props = genProps();
     G.stones = G.props.filter(function (p) { return p.kind === 'stone'; });
     G.bushes = G.props.filter(function (p) { return p.kind === 'bush'; });
+    G.chests = []; G.chestTimer = C.chest.firstDelay;
     G.spawnTimer = 0.7; G.shake = 0; G.damageFlash = 0; G.waveIndex = 0; G.waveKills = 0; G.waveSpawned = 0;
     G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0; G.refreshes = 0;
     G.choices = []; G.choicesCompleted = 0; G.choiceHistory = []; G.currentOfferElements = [];
@@ -222,6 +225,76 @@
       if (dx * dx + dy * dy < rr * rr) return true;
     }
     return false;
+  }
+  /* 宝箱刷新点：只落在当前视口内，玩家能看见才有“要不要冒险去捡”的抉择；
+     离角色至少 130px（不会糊在脚下），并避开石头。 */
+  function chestPoint() {
+    var p = G.player, cam = G.cam, pad = 44, cfg = C.chest;
+    for (var i = 0; i < 40; i++) {
+      var x = cam.x + pad + Math.random() * (C.width - pad * 2);
+      var y = cam.y + pad + Math.random() * (C.height - pad * 2);
+      if (Math.hypot(x - p.x, y - p.y) < 130) continue;
+      if (stoneHit(x, y, cfg.r + 8)) continue;
+      return { x: x, y: y };
+    }
+    return null;
+  }
+  function spawnChest() {
+    var point = chestPoint();
+    if (!point) return false;
+    G.chests.push({ id: ++spawnChest.uid, x: point.x, y: point.y, r: C.chest.r,
+      age: 0, life: C.chest.life, phase: Math.random() * Math.PI * 2, dead: false });
+    return true;
+  }
+  spawnChest.uid = 0;
+  /* 开箱：增益与减益共用同一组幅度（step），只是符号相反，因此强度对称。
+     结果只有开箱瞬间才揭晓——宝箱本体在所有方面都长得一样。 */
+  function openChest(box) {
+    box.dead = true;
+    var kind = chooseWeighted(C.chest.weight), st = C.chest.step, p = G.player, name, color;
+    if (kind === 'luxury') {
+      burst(box.x, box.y, '#ffd166', 34, 260); G.shake = Math.max(G.shake, 10); A.clear();
+      G.floaters.push({ x: box.x, y: box.y, text: '豪华奖励', color: '#ffd166', age: 0, life: 1.6 });
+      if (isEndless()) {
+        /* 无尽模式没有终点，直接结算无从谈起：改为回满生命并给一笔金币 */
+        p.hp = p.maxhp; G.coins += 50;
+        toast('豪华奖励：回满生命 + 50 金币', '#ffd166');
+      } else {
+        toast('豪华奖励：本关直接通关', '#ffd166');
+        finishLevel(true);
+      }
+      return;
+    }
+    if (kind === 'speedUp') { p.speedMod = Math.min(.75, p.speedMod + st.speed); name = '移速 +' + Math.round(st.speed * 100) + '%'; color = '#8fe9ff'; }
+    else if (kind === 'speedDown') { p.speedMod = Math.max(-.55, p.speedMod - st.speed); name = '移速 -' + Math.round(st.speed * 100) + '%'; color = '#ff8b8b'; }
+    else if (kind === 'hasteUp') { p.hasteMod = Math.min(.5, p.hasteMod + st.haste); name = '攻速 +' + Math.round(st.haste * 100) + '%'; color = '#8fe9ff'; }
+    else if (kind === 'hasteDown') { p.hasteMod = Math.max(-.5, p.hasteMod - st.haste); name = '攻速 -' + Math.round(st.haste * 100) + '%'; color = '#ff8b8b'; }
+    else if (kind === 'damageUp') { p.damageMod = Math.min(.8, p.damageMod + st.damage); name = '伤害 +' + Math.round(st.damage * 100) + '%'; color = '#8fe9ff'; }
+    else { p.damageMod = Math.max(-.6, p.damageMod - st.damage); name = '伤害 -' + Math.round(st.damage * 100) + '%'; color = '#ff8b8b'; }
+    recomputeDerived();
+    A.level();
+    G.floaters.push({ x: box.x, y: box.y, text: name, color: color, age: 0, life: 1.2 });
+    burst(box.x, box.y, color, 12, 150);
+    toast('宝箱：' + name, color);
+  }
+  /* 宝箱计时：只在成功落地后重置间隔；同屏满员或找不到落点时 2 秒后再试，
+     避免每帧重试把刷新率偷偷拉高。 */
+  function updateChests(dt) {
+    var cfg = C.chest;
+    for (var i = 0; i < G.chests.length; i++) {
+      var box = G.chests[i];
+      if (box.dead) continue;
+      box.age += dt;
+      if (box.age >= cfg.life) { box.dead = true; continue; }
+      if (Math.hypot(G.player.x - box.x, G.player.y - box.y) <= cfg.pickupR + C.hero.r) openChest(box);
+    }
+    G.chests = G.chests.filter(function (b) { return !b.dead; });
+    if (G.state !== 'playing') return;   // 豪华奖励可能已经结算通关
+    G.chestTimer -= dt;
+    if (G.chestTimer <= 0) {
+      if (G.chests.length < cfg.max && spawnChest()) G.chestTimer = cfg.interval[0] + Math.random() * (cfg.interval[1] - cfg.interval[0]);
+      else G.chestTimer = 2;
+    }
   }
   function spawnBatch() {
     var w = waveConfig();
@@ -377,10 +450,12 @@
     if (gained) G.refreshes++;
     toast('第 ' + (G.waveIndex + 1) + ' 波来临' + (gained ? ' · 刷新机会 +1' : ''), '#8fe9ff');
   }
-  function finishLevel() {
-    var ratio = G.player.hp / G.player.maxhp, stars = calculateStars(ratio), flawless = ratio >= 0.999999;
+  /* luxury 为真时是宝箱的豪华奖励：不看剩余生命，直接按满星通关，
+     但不算满血（flawless）记录，避免白嫖满血档。 */
+  function finishLevel(luxury) {
+    var ratio = G.player.hp / G.player.maxhp, stars = luxury ? 3 : calculateStars(ratio), flawless = !luxury && ratio >= 0.999999;
     bankCoins();
-    G.result = { stars: stars, flawless: flawless, ratio: ratio, coins: G.lastCoins };
+    G.result = { stars: stars, flawless: flawless, ratio: ratio, coins: G.lastCoins, luxury: !!luxury };
     if (stars > (G.progress.stars[G.selectedLevel] || 0)) G.progress.stars[G.selectedLevel] = stars;
     if (flawless) G.progress.flawless[G.selectedLevel] = true;
     P.saveProgress(G.progress); G.state = 'cleared'; G.telegraphs = []; A.clear();
@@ -413,7 +488,7 @@
   function moveHero(dt) {
     var mv = G.move || { x: 0, y: 0 }, len = Math.hypot(mv.x || 0, mv.y || 0);
     if (len > 1e-6) {
-      var scale = len > 1 ? 1 / len : 1, step = C.hero.speed * dt;
+      var scale = len > 1 ? 1 / len : 1, speed = C.hero.speed * (1 + (G.player.speedMod || 0)), step = speed * dt;
       G.player.x = Math.max(C.hero.r, Math.min(C.world.w - C.hero.r, G.player.x + mv.x * scale * step));
       G.player.y = Math.max(C.hero.r, Math.min(C.world.h - C.hero.r, G.player.y + mv.y * scale * step));
       G.player.aim = Math.atan2(mv.y, mv.x);
@@ -480,7 +555,7 @@
     });
     if (G.state === 'playing') combat.update(dt);
     G.enemies = G.enemies.filter(function (e) { return !e.dead; });
-    settleCombatFlow(); updateEffects(dt);
+    settleCombatFlow(); updateChests(dt); updateEffects(dt);
   }
   function bankCoins() {
     if (!G.coins) return;

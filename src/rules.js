@@ -61,8 +61,11 @@
     }
     s.tags.forEach(function (tag) { tax += level(tag) * .05; });
     var damageBonus = level('damage') * .2 + level('attribute') * .1;
-    var attack = C.power.base * s.ratio * Math.max(0, 1 + (state.player.damageBonus || 0) + damageBonus - tax);
-    return { id: id, dmg: attack, cd: s.persistent ? 0 : Math.max(s.minCd, s.cd * (1 - amount('cooldown') - (state.player.haste || 0))) * 1000,
+    /* damageMod：本局宝箱的伤害修正（加减同幅度）；与卡等级、羁绊、局外加成同处一个加算乘区。 */
+    var attack = C.power.base * s.ratio * Math.max(0, 1 + (state.player.damageBonus || 0) + (state.player.damageMod || 0) + damageBonus - tax);
+    /* hasteMod：宝箱的攻速修正，正值缩短冷却；minCd 仍是最硬的冷却下限。 */
+    return { id: id, dmg: attack,
+      cd: s.persistent ? 0 : Math.max(s.minCd, s.cd * (1 - amount('cooldown') - (state.player.haste || 0) - (state.player.hasteMod || 0))) * 1000,
       count: has(s, 'multi') ? amount('multi') : 1, child: amount('split'), pierce: amount('pierce'),
       radius: (s.radius || C.combat.radius) * (1 + amount('range')), duration: has(s, 'duration') ? (s.duration || C.combat.duration) + amount('duration') : 0,
       breach: amount('breach'), slow: amount('slow'), freezeChance: has(s, 'freeze') ? Math.min(1, C.combat.freezeChance + amount('freeze')) : 0, freeze: C.combat.freeze,
