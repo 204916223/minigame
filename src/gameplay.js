@@ -99,15 +99,16 @@
     return keys[0];
   }
   /* 怪物强度曲线：波次成长 × 波内逐只成长 × 关卡系数，第二只一定比第一只硬 */
-  /* 每级成长按波次分阶段：1-3 波加血量，4-6 波加防御，7-10 波加速度 */
-  function enemyPhaseStat() { return G.waveIndex < 3 ? 'hp' : (G.waveIndex < 6 ? 'def' : 'speed'); }
+  /* 角色升级仅影响 1-3 波血量、4-6 波防御，后续波次不再随等级增强。 */
+  function enemyPhaseStat() { return G.waveIndex < 3 ? 'hp' : (G.waveIndex < 6 ? 'def' : null); }
   function spawnEnemy(key, sx, sy) {
     var type = C.enemyTypes[key], level = levelConfig(), curve = C.curve;
     var waveMul = Math.pow(curve.waveHpGrowth, G.waveIndex), defWaveMul = Math.pow(curve.waveDefGrowth, G.waveIndex);
     var idx = G.waveSpawned, spawnMul = 1 + curve.spawnGrowth * idx;
     var lvlMul = 1 + ((C.curve.levelEnemyGrowth || 1) - 1) * Math.max(0, G.player.lvl - 1);
     var phase = enemyPhaseStat();
-    var hpMul = phase === 'hp' ? lvlMul : 1, defMul = phase === 'def' ? lvlMul : 1, spdMul = phase === 'speed' ? lvlMul : 1;
+    var hpMul = phase === 'hp' ? lvlMul : 1, defMul = phase === 'def' ? lvlMul : 1;
+    var spdMul = curve.waveSpeedMultipliers[G.waveIndex] || 1;
     if (isEndless()) {
       waveMul = 1 + C.endless.hpGrowth * G.waveIndex; defWaveMul = 1 + C.endless.defGrowth * G.waveIndex;
       spawnMul = hpMul = defMul = 1;
@@ -179,20 +180,20 @@
       G.parts.push({ x: x, y: y, vx: Math.cos(angle) * velocity, vy: Math.sin(angle) * velocity - 40,
         life: 0.4 + Math.random() * 0.5, age: 0, color: color, size: 2 + Math.random() * 3, gravity: 260 }); }
   }
-  /* 隐藏机制：主角每升 1 级，按当前波次阶段给怪 +5%（线性）：1-3 波血、4-6 波防、7-10 波速 */
+  /* 主角每升 1 级，按当前阶段给怪 +5%（线性）：1-3 波血量、4-6 波防御。 */
   function scaleEnemiesOnLevelUp() {
     if (isEndless()) return; // 无尽只按波次成长，避免角色升级突破速度上限。
+    var phase = enemyPhaseStat();
+    if (!phase) return;
     var g = C.curve.levelEnemyGrowth || 1;
     if (g === 1) return;
     var newMul = 1 + (g - 1) * Math.max(0, G.player.lvl - 1);
     var oldMul = 1 + (g - 1) * Math.max(0, G.player.lvl - 2);
     var ratio = oldMul > 0 ? newMul / oldMul : 1;
-    var phase = enemyPhaseStat();
     G.enemies.forEach(function (e) {
       if (e.dead) return;
       if (phase === 'hp') { e.maxhp *= ratio; e.hp *= ratio; }
       else if (phase === 'def') { e.def = (e.def || 0) * ratio; }
-      else { e.spd *= ratio; }
     });
   }
   function collectLevelUps() {

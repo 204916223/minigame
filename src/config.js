@@ -47,8 +47,10 @@
 
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
      openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔；
-     levelEnemyGrowth：主角每升 1 级，场上和之后刷出的怪防御/血量/速度线性 +5% */
-    curve: { waveHpGrowth: 1.035, waveDefGrowth: 1.02, spawnGrowth: 0.0018, openingRelief: 1.0, openingReliefWaves: 0, levelEnemyGrowth: 1.05 },
+     levelEnemyGrowth：主角升级仅在 1-3 波增加血量、4-6 波增加防御；
+     移速按出生波次固定，第 7-10 波分别 +10%/+20%/+30%/+40%，不随等级增长 */
+    curve: { waveHpGrowth: 1.035, waveDefGrowth: 1.02, spawnGrowth: 0.0018, openingRelief: 1.0, openingReliefWaves: 0, levelEnemyGrowth: 1.05,
+      waveSpeedMultipliers: [1, 1, 1, 1, 1, 1, 1.1, 1.2, 1.3, 1.4] },
     /* 控制上限：冰冻最长 2s（受抗性衰减），击退不能把怪推出屏幕 */
     control: { freezeCap: 2, knockMinY: 8 },
     /* 交战线：敌人必须先走进画面（y >= enterY）才会被锁定/溅射/传导/灼烧，

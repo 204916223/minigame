@@ -20,9 +20,9 @@ test('七种生成技在 60/20 FPS 和波动帧率下均完成预警和爆发，
   for (const skill of generated) for (const cadence of [[1/60], [.05], [.016,.05,.033,.017]]) {
     for (const scenario of ['stationary', 'runner', 'lateRunner']) {
       const h = setup(), d = h.R.derive(h.G, skill.id);
-      // 第 7 波、角色 20 级的跑怪：46 × (1 + 19 × 5%) = 89.7 像素/秒。
+      // 普通关末波跑怪：46 × 1.4 = 64.4 像素/秒，与角色等级无关。
       const speed = scenario === 'stationary' ? 0 : h.C.enemyTypes.runner.spd *
-        (scenario === 'lateRunner' ? 1 + 19 * (h.C.curve.levelEnemyGrowth - 1) : 1);
+        (scenario === 'lateRunner' ? h.C.curve.waveSpeedMultipliers[9] : 1);
       const enemy = h.target(240,220,{spd:speed,r:10,def:55,el:skill.el === 'physical' ? 'fire' : 'physical'});
       const label = skill.id + ' / ' + cadence + ' / ' + scenario;
       assert.equal(h.GP.combat.cast(d),true,label);
