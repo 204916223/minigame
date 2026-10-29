@@ -17,9 +17,15 @@
       if (inside(x, y, G.ui.selectNext)) { GP.changeSelectionPage(1); return; }
     }
     if (G.state === 'meta') {
+      if (G.metaResetOpen) {
+        if (inside(x, y, G.ui.metaResetConfirm)) GP.resetMeta();
+        else if (inside(x, y, G.ui.metaResetCancel)) GP.closeMetaReset();
+        return;
+      }
       var rows = G.ui.metaRows || [];
       for (var r = 0; r < rows.length; r++) if (inside(x, y, rows[r])) { GP.buyMeta(rows[r].id); return; }
       if (inside(x, y, G.ui.metaBack)) GP.leaveMeta();
+      else if (inside(x, y, G.ui.metaReset)) GP.openMetaReset();
       return;
     }
     if (G.state === 'menu') {

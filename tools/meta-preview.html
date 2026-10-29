@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>强化重置 · 验证预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#070a12;color:#e8ecf7;font:14px system-ui,sans-serif}main{display:flex;justify-content:center;gap:28px;padding:24px;align-items:flex-start}aside{width:280px}h1{font-size:24px}p,output{line-height:1.8;color:#aeb8d2}button{width:100%;padding:12px;margin:6px 0;border:1px solid #33456f;border-radius:8px;background:#16203a;color:#e8ecf7;font:inherit;cursor:pointer}canvas{width:450px;height:600px;border:1px solid #33456f;border-radius:12px}output{display:block;margin-top:18px;color:#8fe9ff}@media(max-width:800px){main{flex-direction:column;align-items:center}aside,canvas{width:min(450px,100%)}canvas{height:auto;aspect-ratio:3/4}}
+</style>
+<main><aside><h1>强化重置 · 验证预览</h1><p>使用正式强化、输入及存档规则。测试数据独立，不读取或修改实际存档。</p>
+<button id="mixed">攻击3级 · 生命2级 · 护盾1级</button><button id="maxed">五项满级</button><button id="empty">没有强化</button><output id="status" aria-live="polite"></output>
+<p>已解锁前三关与倍速，拥有无尽纪录。重置后可检查这些进度是否保留。</p></aside><canvas id="game" aria-label="强化重置预览画布"></canvas></main>
+<script src="../src/config.js?v=29"></script><script src="../src/rules.js?v=29"></script><script src="../src/combat.js?v=29"></script><script src="../src/platform.js?v=29"></script><script src="../src/audio.js?v=29"></script>
+<script>PixelMow.Platform.loadProgress=function(){return {};};PixelMow.Platform.saveProgress=function(){};</script>
+<script src="../src/gameplay.js?v=29"></script><script src="../src/renderer.js?v=29"></script><script src="../src/input.js?v=29"></script>
+<script>
+var PM=PixelMow,GP=PM.Gameplay,G=GP.state,last=performance.now();PM.Platform.setupCanvas();PM.Input.bind();
+function setup(meta){G.progress=PM.Rules.progress({coins:1250.5,meta:meta,stars:[3,2,1],endless:{bestWave:12,bestKills:12850},doubleSpeedUnlocked:true});GP.openMenu();GP.openMeta();}
+document.getElementById('mixed').onclick=function(){setup({atk:3,hp:2,shield:1});};document.getElementById('maxed').onclick=function(){setup({atk:40,hp:40,shield:40,def:40,haste:40});};document.getElementById('empty').onclick=function(){setup({});};
+function loop(now){var dt=Math.min(.05,(now-last)/1000);last=now;PM.Renderer.render(dt);document.getElementById('status').textContent='金币 '+G.progress.coins+' · 强化总等级 '+GP.metaResetQuote().levels+' · 倍速'+(GP.isDoubleSpeedUnlocked()?'已解锁':'未解锁')+' · 无尽最高 '+G.progress.endless.bestWave+' 波';requestAnimationFrame(loop);}
+setup({atk:3,hp:2,shield:1});requestAnimationFrame(loop);window.addEventListener('resize',PM.Platform.setupCanvas);
+</script></html>

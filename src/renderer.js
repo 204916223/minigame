@@ -316,7 +316,24 @@
       text(maxed ? '已满级' : (cost + ' 金币'), btn.x + btn.w / 2, btn.y + btn.h / 2 + 1, 12,
         maxed ? '#596176' : (affordable ? '#05121c' : '#8b95b3'), 'center', 'middle', 'bold');
     });
-    G.ui.metaBack = { x: 160, y: 548, w: 160, h: 42 }; button(G.ui.metaBack, '返 回', '#26324f', '#cdd6ee');
+    var canReset = GP.metaResetQuote().levels > 0;
+    G.ui.metaBack = { x: 55, y: 548, w: 170, h: 42 }; button(G.ui.metaBack, '返 回', '#26324f', '#cdd6ee');
+    G.ui.metaReset = { x: 255, y: 548, w: 170, h: 42 };
+    button(G.ui.metaReset, canReset ? '重置强化' : '暂无强化', canReset ? '#452632' : '#1b2438', canReset ? '#ffb2ba' : '#717c98');
+    text('重置返还已投入强化金币的 ' + percent(C.meta.refundRatio) + '%', C.width / 2, 610, 11, '#aeb8d2', 'center', 'middle');
+    if (G.metaResetOpen) metaResetDialog();
+  }
+  function metaResetDialog() {
+    var c = ctx(), G = GP.state, quote = GP.metaResetQuote();
+    c.fillStyle = 'rgba(6,9,17,.94)'; c.fillRect(0, 0, C.width, C.height);
+    text('重置局外强化', C.width / 2, 200, 28, '#ffb2ba', 'center', 'middle', 'bold');
+    text('五项强化将全部恢复为 Lv.0', C.width / 2, 251, 16, '#e8ecf7', 'center', 'middle');
+    text('已投入 ' + quote.spent + ' 金币', C.width / 2, 300, 16, '#aeb8d2', 'center', 'middle');
+    text('返还 ' + quote.refund + ' 金币（' + percent(C.meta.refundRatio) + '%）', C.width / 2, 344, 22, '#ffd166', 'center', 'middle', 'bold');
+    text('重置后可重新分配金币', C.width / 2, 397, 14, '#e8ecf7', 'center', 'middle');
+    text('关卡进度、无尽纪录和倍速解锁保留', C.width / 2, 430, 12, '#aeb8d2', 'center', 'middle');
+    G.ui.metaResetCancel = { x: 55, y: 548, w: 170, h: 42 }; button(G.ui.metaResetCancel, '取 消', '#26324f', '#cdd6ee');
+    G.ui.metaResetConfirm = { x: 255, y: 548, w: 170, h: 42 }; button(G.ui.metaResetConfirm, '确认重置', '#e6495a', '#fff');
   }
   function pause() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.74)'; c.fillRect(0, 0, C.width, C.height); text('已 暂 停', C.width / 2, 260, 28, '#e8ecf7', 'center', 'middle', 'bold');
     G.ui.resume = { x: 160, y: 315, w: 160, h: 50 }; button(G.ui.resume, '继 续', '#33b3e6');

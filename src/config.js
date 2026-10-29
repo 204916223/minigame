@@ -65,6 +65,7 @@
     /* 局外养成：每击杀 1 只怪 +1 金币，金币在局外升级（菜单/选关里的「局外强化」） */
     meta: {
       killCoins: 1,
+      refundRatio: .8,
       upgrades: [
         { id: 'atk', name: '攻击力', desc: '每级 +2.5% 基础攻击（初始 200）', base: 1000, costStep: 500, max: 40, per: .025, unit: '% 攻击' },
         { id: 'hp', name: '生命上限', desc: '每级 +5% 基础生命（初始 400）', base: 1000, costStep: 500, max: 40, per: .05, unit: '% 生命' },

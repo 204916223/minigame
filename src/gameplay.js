@@ -21,7 +21,7 @@
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
       waveIndex: 0, waveKills: 0, waveSpawned: 0, bossSpawned: false,
-      waveLead: 0, pendingLevelUps: 0, refreshes: 0, coins: 0, lastCoins: 0, metaReturn: null,
+      waveLead: 0, pendingLevelUps: 0, refreshes: 0, coins: 0, lastCoins: 0, metaReturn: null, metaResetOpen: false,
       choices: [], choicesCompleted: 0, choiceHistory: [], currentOfferElements: [], fullscreenSince: null, progress: R.progress(P.loadProgress()), result: null,
       candidates: [], equippedOrder: [], focusedSkill: C.loadout.initial, sweeps: [],
       ui: { cards: [], levelButtons: [], metaRows: [], metaBack: null, shop: null },
@@ -417,6 +417,7 @@
     return upg.base + upg.costStep * lv;
   }
   function buyMeta(id) {
+    if (G.metaResetOpen) return false;
     var upg = metaUpgrade(id); if (!upg) return false;
     var lv = (G.progress.meta && G.progress.meta[id]) || 0;
     if (lv >= upg.max) return false;
@@ -428,12 +429,33 @@
     A.pick();
     return true;
   }
+  function metaResetQuote() {
+    var spent = 0, levels = 0;
+    C.meta.upgrades.forEach(function (upg) {
+      var lv = G.progress.meta[upg.id] || 0;
+      // 每项价格独立递增，按已购各级的原价求和，不能用当前下一级价格乘等级。
+      spent += lv * upg.base + upg.costStep * lv * (lv - 1) / 2; levels += lv;
+    });
+    return { levels: levels, spent: spent, refund: Math.floor(spent * C.meta.refundRatio) };
+  }
+  function openMetaReset() {
+    if (G.state !== 'meta' || !metaResetQuote().levels) return false;
+    G.metaResetOpen = true; return true;
+  }
+  function closeMetaReset() { G.metaResetOpen = false; }
+  function resetMeta() {
+    if (G.state !== 'meta' || !G.metaResetOpen) return false;
+    var quote = metaResetQuote(); G.metaResetOpen = false;
+    if (!quote.levels) return false;
+    C.meta.upgrades.forEach(function (upg) { G.progress.meta[upg.id] = 0; });
+    G.progress.coins += quote.refund; P.saveProgress(G.progress); A.pick(); return true;
+  }
   function openMeta() {
     if (G.state === 'playing' || G.state === 'levelup' || G.state === 'over' || G.state === 'cleared') return;
     G.metaReturn = G.state === 'meta' ? G.metaReturn : G.state;
-    G.state = 'meta';
+    G.metaResetOpen = false; G.state = 'meta';
   }
-  function leaveMeta() { G.state = ['levelselect', 'endlessselect'].indexOf(G.metaReturn) >= 0 ? G.metaReturn : 'menu'; G.metaReturn = null; }
+  function leaveMeta() { G.metaResetOpen = false; G.state = ['levelselect', 'endlessselect'].indexOf(G.metaReturn) >= 0 ? G.metaReturn : 'menu'; G.metaReturn = null; }
   function loadoutReady() { return G.progress.candidates.length === C.loadout.candidates; }
   function canSelectLevel() { return loadoutReady() || isEndlessUnlocked(); }
   function openLevelSelect() {
@@ -477,6 +499,7 @@
     recompute: recomputeDerived, refreshChoices: refreshChoices, fullscreenChance: fullscreenChance,
     isDoubleSpeedUnlocked: isDoubleSpeedUnlocked, toggleBattleSpeed: toggleBattleSpeed, buyDoubleSpeed: buyDoubleSpeed, closeSpeedUnlock: closeSpeedUnlock,
     openMeta: openMeta, leaveMeta: leaveMeta, buyMeta: buyMeta, metaCost: metaCost, totalStars: totalStars, bankCoins: bankCoins,
+    metaResetQuote: metaResetQuote, openMetaReset: openMetaReset, closeMetaReset: closeMetaReset, resetMeta: resetMeta,
     pause: function (value) { if (G.speedUnlockOpen) return; G.paused = value; G.last = P.now(); },
     toast: toast, dangerY: dangerY, waveConfig: waveConfig
   };
