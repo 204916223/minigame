@@ -29,9 +29,19 @@
       return;
     }
     if (G.state === 'menu') {
-      var candidates = G.ui.candidates || [];
-      for (var j = 0; j < candidates.length; j++) if (inside(x, y, candidates[j])) { GP.toggleCandidate(candidates[j].id); return; }
-      if (inside(x, y, G.ui.shop)) GP.openMeta(); else if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
+      if (G.loadoutOpen) {
+        if (inside(x, y, G.ui.loadoutDone)) { G.loadoutOpen = false; return; }
+        var candidates = G.ui.candidates || [];
+        for (var j = 0; j < candidates.length; j++) if (inside(x, y, candidates[j])) { GP.toggleCandidate(candidates[j].id); return; }
+        return;
+      }
+      if (inside(x, y, G.ui.heroPrev)) GP.changeCharacter(-1);
+      else if (inside(x, y, G.ui.heroNext)) GP.changeCharacter(1);
+      else if (inside(x, y, G.ui.loadout)) G.loadoutOpen = true;
+      else if (inside(x, y, G.ui.shop)) GP.openMeta();
+      else if (inside(x, y, G.ui.start)) GP.openLevelSelect();
+      return;
+    }
     if (G.state === 'endlessselect') {
       if (inside(x, y, G.ui.menu)) GP.openMenu();
       else if (inside(x, y, G.ui.shop)) GP.openMeta();
@@ -77,7 +87,7 @@
     else {
       canvas.addEventListener('pointerdown', function (event) { var point = P.logical(event.clientX, event.clientY, canvas.getBoundingClientRect()); tap(point.x, point.y); });
       window.addEventListener('keydown', function (event) { var G = GP.state;
-        if (event.code === 'Space' && G.state === 'menu') { event.preventDefault(); A.unlock(); GP.openLevelSelect(); }
+        if (event.code === 'Space' && G.state === 'menu' && !G.loadoutOpen) { event.preventDefault(); A.unlock(); GP.openLevelSelect(); }
         else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && (G.state === 'levelselect' || G.state === 'endlessselect')) {
           event.preventDefault(); GP.changeSelectionPage(event.key === 'ArrowLeft' ? -1 : 1);
         }

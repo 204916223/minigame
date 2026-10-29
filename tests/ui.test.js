@@ -12,10 +12,10 @@ test('所有状态正常渲染；四张选项不重叠且在画布内',()=>{
 test('真实输入路径：候选取消/添加、冒险、返回配置、开局、四选一',()=>{
  const h=createGame();const render=()=>h.PM.Renderer.render(1/60);
  function tap(r){h.advanceClock(300);h.PM.Input.tap(r.x+r.w/2,r.y+r.h/2);render();}
- render();const selected=h.G.ui.candidates.find(r=>h.G.progress.candidates.includes(r.id)),before=h.G.progress.candidates.length;
+ render();tap(h.G.ui.loadout);const selected=h.G.ui.candidates.find(r=>h.G.progress.candidates.includes(r.id)),before=h.G.progress.candidates.length;
  tap(selected);assert.equal(h.G.progress.candidates.length,before-1);
- tap(h.G.ui.start);assert.equal(h.G.state,'menu');assert.match(h.G.toast.text,/请先选满 7/);
- tap(selected);assert.equal(h.G.progress.candidates.length,before);
+ tap(h.G.ui.loadoutDone);tap(h.G.ui.start);assert.equal(h.G.state,'menu');assert.match(h.G.toast.text,/请先选满 7/);
+ tap(h.G.ui.loadout);tap(selected);assert.equal(h.G.progress.candidates.length,before);tap(h.G.ui.loadoutDone);
  tap(h.G.ui.start);assert.equal(h.G.state,'levelselect');tap(h.G.ui.menu);assert.equal(h.G.state,'menu');
  tap(h.G.ui.start);tap(h.G.ui.levelButtons.find(r=>r.index===0));assert.equal(h.G.state,'playing');assert.equal(h.GP.ownedSkills(),1);
  h.GP.grantExperience(3);render();assert.equal(h.G.ui.cards.length,4);tap(h.G.ui.cards[0]);assert.equal(h.G.state,'playing');
@@ -75,12 +75,29 @@ test('左右竖排：四段圆环按技能数显示，冷却变化不改变进�
 });
 test('点技能格切换专属强化；新获取或强化自动定位；空格和暂停不会误选',()=>{
  const h=createGame();h.GP.resetRun(0);h.equip(['fireball','laser']);
- h.G.cardLevels={'basic:damage':1,'fireball:attribute':3};h.GP.recompute();
+ h.G.cardLevels={'basic:damage':1,'attribute:fire':3};h.GP.recompute();
  let drawn=[];h.PM.Platform.ctx().fillText=(value,x,y)=>{if(x>380&&y>90&&y<500)drawn.push(String(value));};
  const render=()=>{drawn=[];h.PM.Renderer.render(0);};render();assert.ok(drawn.includes('+20%'));assert.ok(!drawn.includes('+30%'));
  const slot=h.G.ui.skillSlots.find(s=>s.id==='fireball');h.advanceClock(300);h.PM.Input.tap(slot.x+slot.w/2,slot.y+slot.h/2);render();
  assert.equal(h.G.focusedSkill,'fireball');assert.ok(drawn.includes('+30%'));assert.ok(!drawn.includes('+20%'));assert.equal(h.G.state,'playing');
  assert.equal(h.GP.selectSkill('unknown'),false);h.GP.pause(true);assert.equal(h.GP.selectSkill('basic'),false);h.GP.pause(false);
- h.take('basic:attribute');assert.equal(h.G.focusedSkill,'basic');
+ h.take('attribute:physical');assert.equal(h.G.focusedSkill,'basic');
  h.take('get:blackhole');assert.equal(h.G.focusedSkill,'blackhole');h.GP.resetRun(0);assert.equal(h.G.focusedSkill,'basic');
+});
+
+test('首页角色循环切换并持久化；技能弹窗阻止穿透和空格开战',()=>{
+ const h=createGame();h.PM.Input.bind();const render=()=>h.PM.Renderer.render(0);
+ const tap=r=>{h.advanceClock(300);h.PM.Input.tap(r.x+r.w/2,r.y+r.h/2);render();};
+ render();const first=h.GP.selectedCharacter().id;
+ tap(h.G.ui.heroPrev);assert.equal(h.GP.selectedCharacter().id,h.C.characters.at(-1).id);
+ tap(h.G.ui.heroNext);assert.equal(h.GP.selectedCharacter().id,first);
+ tap(h.G.ui.heroNext);const chosen=h.GP.selectedCharacter().id;
+ assert.equal(createGame(JSON.parse(h.storage['pixelMowProgress.v3'])).GP.selectedCharacter().id,chosen);
+ tap(h.G.ui.loadout);assert.ok(h.G.loadoutOpen);
+ tap({x:0,y:140,w:10,h:40});assert.equal(h.GP.selectedCharacter().id,chosen);
+ h.events.keydown({code:'Space',preventDefault(){}});assert.equal(h.G.state,'menu');
+ assert.ok(h.G.ui.candidates.every(r=>r.y+r.h< h.G.ui.loadoutDone.y));
+ tap(h.G.ui.loadoutDone);tap(h.G.ui.start);assert.equal(h.G.state,'levelselect');
+ h.GP.resetRun(0);assert.equal(h.GP.selectedCharacter().id,chosen);
+ assert.equal(createGame({character:'invalid'}).GP.selectedCharacter().id,first);
 });

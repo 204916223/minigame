@@ -18,7 +18,10 @@
       if (!onField(e)) return 0;
       var damage = damageAmount(e, attack, d) * (scale === undefined ? 1 : scale);
       if (!isFinite(damage)) return 0;
-      e.hp -= damage; e.flash = damage > 0 ? 1 : e.flash;
+      e.hp -= damage;
+      // 常驻中毒每帧结算，不反复闪白，以免遮住敌人的元素颜色。
+      var source = R.skill(d.id);
+      if (damage > 0 && !(source && source.persistent)) e.flash = 1;
       if (e.hp <= 0) hooks.kill(e, d.id);
       return damage;
     }
@@ -131,8 +134,14 @@
       if (!pool.length) return false;
       var origin = { x: C.hero.x, y: C.hero.y - 16 };
       if (s.mode === 'fullscreen') {
-        pool.forEach(function (e) { if (s.persistent) dot(e, d, d.dmg); else hit(e, d); });
-        if (!s.persistent) { G.sweeps.push({ color: s.color, age: 0, life: .65 }); hooks.sound('boom'); }
+        if (s.persistent) pool.forEach(function (e) { dot(e, d, d.dmg); });
+        else {
+          var previousY = {};
+          G.enemies.forEach(function (e) { previousY[e.id] = e.y; });
+          G.sweeps.push({ color: s.color, age: 0, life: C.combat.fullscreenSweepDuration, y: C.height,
+            derived: Object.assign({}, d), hitIds: {}, previousY: previousY });
+          hooks.sound('boom');
+        }
       } else if (s.id === 'laser') laser(d);
       else if (s.mode === 'generate') {
         var used = {}, generated = 0, delay = C.combat.generateDelay + C.combat.generateFill;
@@ -187,6 +196,22 @@
         var hits = area(t.x, t.y, t.derived, true); hooks.sound('boom');
         if (hooks.generated) hooks.generated({ skill: t.derived.id, x: t.x, y: t.y, hits: hits });
         return false;
+      });
+      // 扫描线与伤害使用同一位置；以相对运动检测交叉，低帧率和移动目标也不会漏判。
+      G.sweeps = G.sweeps.filter(function (sweep) {
+        var oldY = sweep.y;
+        sweep.age = Math.min(sweep.life, sweep.age + dt);
+        sweep.y = C.height * (1 - sweep.age / sweep.life);
+        G.enemies.forEach(function (e) {
+          var previous = sweep.previousY[e.id];
+          if (previous === undefined) previous = e.prevY === undefined ? e.y : e.prevY;
+          var before = previous - oldY, after = e.y - sweep.y;
+          if (onField(e) && !sweep.hitIds[e.id] && Math.min(before, after) <= e.r && Math.max(before, after) >= -e.r) {
+            sweep.hitIds[e.id] = true; hit(e, sweep.derived);
+          }
+          sweep.previousY[e.id] = e.y;
+        });
+        return sweep.age < sweep.life;
       });
     }
     function statuses(e, dt) {

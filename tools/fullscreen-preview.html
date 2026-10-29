@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>全屏技能与强化 · 验证预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#070a12;color:#e8ecf7;font:14px system-ui,sans-serif}main{display:flex;justify-content:center;align-items:flex-start;gap:28px;padding:24px}aside{width:300px}h1{font-size:24px}p{color:#aeb8d2;line-height:1.7}canvas{width:450px;height:600px;border:1px solid #33456f;border-radius:12px}select,button{width:100%;margin:4px 0;padding:10px;border:1px solid #33456f;border-radius:8px;color:#e8ecf7;background:#16203a;font:inherit}button{cursor:pointer}button:hover{border-color:#8fe9ff}output{display:block;margin-top:16px;line-height:1.8;color:#8fe9ff}.stages{display:grid;grid-template-columns:1fr 1fr;gap:4px}@media(max-width:800px){main{flex-direction:column;align-items:center}aside{width:min(450px,100%)}canvas{width:min(450px,100%);height:auto;aspect-ratio:3/4}}
+</style>
+<main><aside>
+<h1>全屏技能与强化</h1><p>正式战斗与渲染代码的验证预览。靶子分三排：横线向上扫过后才扣血。毒系保持单层中毒。</p>
+<label for="skill">全屏技能</label><select id="skill"></select>
+<div class="stages"><button data-time="0">施放 · 0.00 秒</button><button data-time="0.2">下排 · 0.20 秒</button><button data-time="0.4">中排 · 0.40 秒</button><button data-time="0.8">结束 · 0.80 秒</button></div>
+<button id="play">播放完整扫描</button><button id="capped">强化满额 · 侧栏预览</button><button id="cards">强化满额 · 选卡预览</button><button id="attribute">电系属性共享 · 对比</button>
+<output id="status" aria-live="polite"></output><p>独立测试存档，不读取或修改实际游玩进度。</p>
+</aside><canvas id="game" aria-label="全屏技能验证画布"></canvas></main>
+<script src="../src/config.js?v=31"></script><script src="../src/rules.js?v=31"></script><script src="../src/combat.js?v=31"></script><script src="../src/platform.js?v=31"></script><script src="../src/audio.js?v=31"></script>
+<script>PixelMow.Platform.loadProgress=function(){return {meta:{haste:40}};};PixelMow.Platform.saveProgress=function(){};</script>
+<script src="../src/gameplay.js?v=31"></script><script src="../src/renderer.js?v=31"></script><script src="../src/input.js?v=31"></script>
+<script>
+var PM=PixelMow,GP=PM.Gameplay,G=GP.state,R=PM.Rules,C=PM.Config,select=document.getElementById('skill');
+var elapsed=0,playing=false,last=0,mode='sweep';
+C.skills.filter(function(s){return s.mode==='fullscreen';}).forEach(function(s){var option=document.createElement('option');option.value=s.id;option.textContent=s.name+' · '+C.elements[s.el].name;select.appendChild(option);});
+PM.Platform.setupCanvas();PM.Input.bind();
+function equip(ids){G.equippedOrder=['basic'].concat(ids);C.skills.forEach(function(s){G.skills[s.id].owned=G.equippedOrder.indexOf(s.id)>=0;G.skills[s.id].cd=0;});GP.recompute();}
+function reset(){playing=false;elapsed=0;mode='sweep';GP.resetRun(0);G.toast.time=0;equip([select.value]);G.focusedSkill=select.value;
+ [500,320,140].forEach(function(y,row){[140,240,340].forEach(function(x,col){var el=Object.keys(C.elements)[(row*3+col)%7];G.enemies.push(Object.assign({},C.enemyTypes.grunt,{id:row*3+col+1,el:el,color:C.elements[el].color,x:x,y:y,spd:0,hp:1000,maxhp:1000,flash:0,freezeT:0,poisonT:0,dead:false}));});});
+ GP.combat.cast(G.skills[select.value].derived);
+}
+function step(dt){elapsed+=dt;G.time=elapsed*1000;G.enemies.forEach(function(e){e.flash=Math.max(0,e.flash-dt*6);GP.combat.statuses(e,dt);});GP.combat.update(dt);}
+function draw(){PM.Renderer.render(0);if(mode==='sweep')document.getElementById('status').textContent=(select.value==='unknown'?'毒域常驻 · ':'扫描时间 '+elapsed.toFixed(2)+' 秒 · ')+'已伤害 '+G.enemies.filter(function(e){return e.hp<e.maxhp;}).length+'/9 个目标 · 累计 '+G.enemies.reduce(function(n,e){return n+e.maxhp-e.hp;},0).toFixed(1)+' 伤害';}
+function stage(time){reset();while(elapsed<time-1e-9)step(Math.min(1/60,time-elapsed));draw();}
+document.querySelectorAll('[data-time]').forEach(function(b){b.onclick=function(){stage(Number(b.dataset.time));};});select.onchange=function(){stage(0);};
+document.getElementById('play').onclick=function(){reset();playing=true;last=performance.now();};
+function caps(){reset();mode='caps';G.sweeps=[];equip(['chain','fireball','meteor']);G.cardLevels={'basic:cooldown':3,'basic:damage':2,'attribute:physical':1,'basic:split':4};G.focusedSkill='basic';GP.recompute();document.getElementById('status').textContent='白银子弹：冷却已到 1 秒下限，分裂卡已满。属性伤害与技能伤害仍可继续提升。';}
+document.getElementById('capped').onclick=function(){caps();draw();};
+document.getElementById('cards').onclick=function(){caps();G.state='levelup';G.choices=['basic:cooldown','chain:cooldown','attribute:elec','basic:damage'].map(function(id){return {card:R.card(id),level:G.cardLevels[id]||0};});draw();};
+document.getElementById('attribute').onclick=function(){reset();mode='attribute';G.sweeps=[];equip(['chain','lightning','thunderstorm']);G.cardLevels={'attribute:elec':3};G.focusedSkill='thunderstorm';GP.recompute();document.getElementById('status').textContent='电系属性伤害 +30%：闪电链接、落雷、雷暴均已提升。可点击底部三个技能对比右侧数值。';draw();};
+function loop(now){if(playing){step(Math.min(.05,(now-last)/1000));if(elapsed>=1.2)playing=false;}draw();last=now;requestAnimationFrame(loop);}
+window.addEventListener('resize',function(){PM.Platform.setupCanvas();draw();});stage(0);requestAnimationFrame(loop);
+</script></html>

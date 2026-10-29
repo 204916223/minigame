@@ -13,7 +13,7 @@ test('开局仅普攻；七候选不自动装备；强化只属于已装备技�
   const { G, GP } = run(); assert.equal(G.candidates.length, 7); assert.equal(GP.ownedSkills(), 1);
   assert.equal(Object.keys(G.cardLevels).length, 0);
   assert.ok(GP.choicePool().filter(ch => ch.card.unlock).every(ch => G.candidates.includes(ch.card.unlock)));
-  assert.ok(GP.choicePool().filter(ch => !ch.card.unlock).every(ch => ch.card.skill === 'basic'));
+  assert.ok(GP.choicePool().filter(ch => !ch.card.unlock).every(ch => ch.card.skill === 'basic' || ch.card.element === 'physical'));
 });
 test('获得风刃不送强化，基础三个目标，两技能尚未解锁羁绊', () => {
   const h = run(); h.G.candidates = ['windblade']; h.take('get:windblade');
@@ -49,14 +49,14 @@ test('羁绊数技能，四件替换两件，卡等级不计数，无标签不�
   h.equip(['fireball','meteor','windblade']);assert.equal(h.R.bonus(h.R.bonds(h.G),'cooldown'),.15);
   h.equip(['unknown']);assert.equal(h.R.derive(h.G,'unknown').cd,0);assert.equal(h.R.has(h.R.skill('unknown'),'cooldown'),false);
 });
-test('技能名与派系唯一标识；属性伤害不影响同元素其他技能', () => {
+test('技能名与派系唯一标识；属性伤害同时提升同元素其他技能', () => {
   const h=run();h.equip(['fireball','meteor']);const before=h.G.skills.meteor.derived.dmg;
-  h.G.cardLevels['fireball:attribute']=3;h.GP.recompute();assert.equal(h.G.skills.meteor.derived.dmg,before);
+  h.G.cardLevels['attribute:fire']=3;h.GP.recompute();assert.equal(h.G.skills.meteor.derived.dmg,before*1.3);
   assert.ok(Math.abs(h.G.skills.fireball.derived.dmg-325)<1e-9);
   assert.equal(new Set(h.R.cards.map(c=>c.id)).size,h.R.cards.length);
 });
 test('强化加算、伤害代价计入、持续时间加秒', () => {
-  const h=run();h.G.cardLevels={'basic:damage':2,'basic:attribute':1,'basic:cooldown':1};
+  const h=run();h.G.cardLevels={'basic:damage':2,'attribute:physical':1,'basic:cooldown':1};
   assert.ok(Math.abs(h.R.derive(h.G,'basic').dmg-290)<1e-9);assert.ok(Math.abs(h.R.derive(h.G,'basic').cd-1900)<1e-9);
   h.equip(['fireball']);h.G.cardLevels['fireball:duration']=2;assert.equal(h.R.derive(h.G,'fireball').duration,4);
 });

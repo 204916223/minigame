@@ -44,6 +44,11 @@
       coinMultiplier: .5, xpMultiplier: .5, interval: 1.5, minInterval: .5,
       pool: { grunt: 1, runner: .5, bat: .3, tank: .1 } },
     enemyHpMultiplier: 2,
+    characters: [
+      { id: "azure", name: "苍蓝卫士", color: "#38bdf8", dark: "#0ea5e9" },
+      { id: "violet", name: "紫晶卫士", color: "#b197fc", dark: "#7048e8" },
+      { id: "jade", name: "翡翠卫士", color: "#63e6be", dark: "#2f9e44" }
+    ],
     hero: { x: 240, y: 552, hp: 400, defense: 100 },
 
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
@@ -58,7 +63,7 @@
        否则武器会在屏幕外就把怪杀掉，玩家看不到敌人出场 */
     combat: { enterY: 8, radius: 55, duration: 3, projectileSpeed: 1600,
       knock: 30, freeze: 1, freezeChance: .1, chainRange: 110, zoneTick: 1, zoneDamageRatio: .25, persistentTick: 1,
-      generateDelay: .5, generateFill: .5 },
+      generateDelay: .5, generateFill: .5, fullscreenSweepDuration: .8 },
     /* 星辉：从第二关起，每颗已获得的星给全队伤害 +15%（加法叠加），
        用来奖励三星通关并托住后期难度 */
     starBonus: { perStar: 0.15, fromLevel: 1 },

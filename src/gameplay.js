@@ -16,7 +16,7 @@
   function makeState() {
     return {
       state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0, pageTurn: null,
-      battleSpeed: 1, speedUnlockOpen: false,
+      battleSpeed: 1, speedUnlockOpen: false, loadoutOpen: false,
       player: {}, skills: {}, cardLevels: {}, cardOrder: [],
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
@@ -51,6 +51,15 @@
       var state = G.skills[s.id] || { cd: 0, owned: s.id === C.loadout.initial };
       state.derived = R.derive(G, s.id); G.skills[s.id] = state;
     });
+  }
+  function selectedCharacter() {
+    return C.characters.filter(function (v) { return v.id === G.progress.character; })[0] || C.characters[0];
+  }
+  function changeCharacter(direction) {
+    if (G.state !== 'menu' || G.loadoutOpen) return false;
+    var index = C.characters.indexOf(selectedCharacter());
+    G.progress.character = C.characters[(index + (direction < 0 ? -1 : 1) + C.characters.length) % C.characters.length].id;
+    P.saveProgress(G.progress); return true;
   }
   function toggleCandidate(id) {
     var s = R.skill(id);
@@ -309,8 +318,12 @@
       if (!G.cardLevels[card.id]) G.cardOrder.push(card.id);
       G.cardLevels[card.id] = (G.cardLevels[card.id] || 0) + 1;
     }
-    recomputeDerived(); G.focusedSkill = card.skill;
-    G.skillPage = isEndless() ? Math.floor(G.equippedOrder.indexOf(card.skill) / C.loadout.slots) : 0;
+    recomputeDerived();
+    if (card.element) {
+      if (!R.skill(G.focusedSkill) || R.skill(G.focusedSkill).el !== card.element)
+        G.focusedSkill = G.equippedOrder.filter(function (id) { return R.skill(id).el === card.element; })[0];
+    } else G.focusedSkill = card.skill;
+    G.skillPage = isEndless() ? Math.floor(G.equippedOrder.indexOf(G.focusedSkill) / C.loadout.slots) : 0;
     recordOffers();
     G.choiceHistory.push(G.currentOfferElements.slice());
     if (G.choiceHistory.length > 2) G.choiceHistory.shift();
@@ -334,7 +347,7 @@
     G.result = { stars: stars, flawless: flawless, ratio: ratio, coins: G.lastCoins };
     if (stars > (G.progress.stars[G.selectedLevel] || 0)) G.progress.stars[G.selectedLevel] = stars;
     if (flawless) G.progress.flawless[G.selectedLevel] = true;
-    P.saveProgress(G.progress); G.state = 'cleared'; G.telegraphs = []; A.clear();
+    P.saveProgress(G.progress); G.state = 'cleared'; G.telegraphs = []; G.sweeps = []; A.clear();
   }
   function hurtPlayer(attack) {
     if (G.state !== 'playing') return;
@@ -346,7 +359,7 @@
     if (remaining > 0) G.player.hp -= remaining;
     G.damageFlash = 1; G.shake = Math.max(G.shake, 8); A.hurt();
     if (G.player.hp <= 0) {
-      G.player.hp = 0; bankCoins(); G.state = 'over'; G.enemies = []; G.bullets = []; G.zones = []; G.telegraphs = []; A.fail();
+      G.player.hp = 0; bankCoins(); G.state = 'over'; G.enemies = []; G.bullets = []; G.zones = []; G.telegraphs = []; G.sweeps = []; A.fail();
     }
   }
   function updateEffects(dt) {
@@ -354,7 +367,6 @@
     G.parts = G.parts.filter(function (p) { return p.age < p.life; });
     G.booms.forEach(function (b) { b.age += dt; }); G.booms = G.booms.filter(function (b) { return b.age < b.life; });
     G.arcs.forEach(function (a) { a.age += dt; }); G.arcs = G.arcs.filter(function (a) { return a.age < a.life; });
-    G.sweeps.forEach(function (v) { v.age += dt; }); G.sweeps = G.sweeps.filter(function (v) { return v.age < v.life; });
     G.floaters.forEach(function (f) { f.age += dt; f.y -= 30 * dt; }); G.floaters = G.floaters.filter(function (f) { return f.age < f.life; });
     G.shake = Math.max(0, G.shake - dt * 40); G.damageFlash = Math.max(0, G.damageFlash - dt * 2); G.toast.time -= dt;
   }
@@ -371,6 +383,7 @@
     updateSkills(dt);
     G.enemies.forEach(function (e) {
       if (e.dead) return;
+      e.prevY = e.y;
       combat.statuses(e, dt); if (e.dead) return;
       if (e.freezeT > 0) { e.freezeT -= dt; }
       else e.y += e.spd * dt * (1 - Math.min(.9, e.slow || 0));
@@ -492,7 +505,7 @@
     G.skillPage = next; G.focusedSkill = G.equippedOrder[next * C.loadout.slots]; return true;
   }
   PM.Gameplay = {
-    state: G, combat: combat, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openEndlessSelect: openEndlessSelect, returnToSelection: returnToSelection, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
+    state: G, combat: combat, selectedCharacter: selectedCharacter, changeCharacter: changeCharacter, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openEndlessSelect: openEndlessSelect, returnToSelection: returnToSelection, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
     isLevelUnlocked: isLevelUnlocked, isEndless: isEndless, isEndlessUnlocked: isEndlessUnlocked, loadoutReady: loadoutReady, canSelectLevel: canSelectLevel, canContinue: canContinue, calculateStars: calculateStars,
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
     ownedSkills: ownedSkills, selectSkill: selectSkill, changeSkillPage: changeSkillPage, changeSelectionPage: changeSelectionPage,
