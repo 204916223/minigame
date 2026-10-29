@@ -15,13 +15,13 @@
 
   function makeState() {
     return {
-      state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0,
+      state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0, pageTurn: null,
       player: {}, skills: {}, cardLevels: {}, cardOrder: [],
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
       waveIndex: 0, waveKills: 0, waveSpawned: 0, bossSpawned: false,
       waveLead: 0, pendingLevelUps: 0, refreshes: 0, coins: 0, lastCoins: 0, metaReturn: null,
-      choices: [], choicesCompleted: 0, choiceHistory: [], currentOfferElements: [], progress: R.progress(P.loadProgress()), result: null,
+      choices: [], choicesCompleted: 0, choiceHistory: [], currentOfferElements: [], fullscreenSince: null, progress: R.progress(P.loadProgress()), result: null,
       candidates: [], equippedOrder: [], focusedSkill: C.loadout.initial, sweeps: [],
       ui: { cards: [], levelButtons: [], metaRows: [], metaBack: null, shop: null },
       toast: { text: '', color: '#fff', time: 0 }
@@ -84,7 +84,7 @@
     G.enemies = []; G.bullets = []; G.parts = []; G.booms = []; G.floaters = []; G.zones = []; G.arcs = []; G.telegraphs = [];
     G.spawnTimer = 0.7; G.shake = 0; G.damageFlash = 0; G.waveIndex = 0; G.waveKills = 0; G.waveSpawned = 0;
     G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0; G.refreshes = 0;
-    G.choices = []; G.choicesCompleted = 0; G.choiceHistory = []; G.currentOfferElements = [];
+    G.choices = []; G.choicesCompleted = 0; G.choiceHistory = []; G.currentOfferElements = []; G.fullscreenSince = null;
     G.ui.cards = []; G.result = null; recomputeDerived();
     toast((isEndless() ? '无尽模式 · ' : '') + '第 1 波', '#8fe9ff'); return true;
   }
@@ -241,13 +241,22 @@
       if (G.currentOfferElements.indexOf(el) < 0) G.currentOfferElements.push(el);
     });
   }
-  // 每轮保底强化，第 3/6/9… 轮另保底新技能；资格与连续元素限制优先。
+  function fullscreenChance() {
+    return G.fullscreenSince === null ? 0 : Math.min(100, 30 + 10 * (G.choicesCompleted - G.fullscreenSince));
+  }
+  // 全屏共用一次概率判定，命中后直接占一项；不能再经普通抽样漏出或漏掉。
   function buildChoices() {
-    var pool = R.pool(G).filter(function (ch) { return !ch.card.unlock || !repeatedElement(R.skill(ch.card.unlock).el); });
+    var available = R.pool(G), fullscreens = available.filter(function (ch) { return ch.card.unlock && R.skill(ch.card.unlock).mode === 'fullscreen'; });
+    if (!fullscreens.length) G.fullscreenSince = null;
+    else if (G.fullscreenSince === null) G.fullscreenSince = G.choicesCompleted;
+    var pool = available.filter(function (ch) {
+      return !ch.card.unlock || (R.skill(ch.card.unlock).mode !== 'fullscreen' && !repeatedElement(R.skill(ch.card.unlock).el));
+    });
     var upgrades = pool.filter(function (ch) { return !ch.card.unlock; }), skills = pool.filter(function (ch) { return ch.card.unlock; });
     var selected = [];
+    if (fullscreens.length && Math.random() * 100 < fullscreenChance()) selected.push(fullscreens[(Math.random() * fullscreens.length) | 0]);
     if (upgrades.length) selected.push(upgrades[(Math.random() * upgrades.length) | 0]);
-    if ((G.choicesCompleted + 1) % 3 === 0 && skills.length) selected.push(skills[(Math.random() * skills.length) | 0]);
+    if ((G.choicesCompleted + 1) % 3 === 0 && skills.length && !selected.some(function (ch) { return ch.card.unlock; })) selected.push(skills[(Math.random() * skills.length) | 0]);
     var rest = shuffled(pool.filter(function (ch) { return selected.indexOf(ch) < 0; })).slice(0, 4 - selected.length);
     return shuffled(selected.concat(rest));
   }
@@ -270,6 +279,7 @@
     if (!card || !G.choices.some(function (ch) { return ch.card.id === card.id; }) || !R.pool(G).some(function (ch) { return ch.card.id === card.id; })) return false;
     if (card.unlock) {
       G.skills[card.unlock].owned = true; G.equippedOrder.push(card.unlock);
+      if (R.skill(card.unlock).mode === 'fullscreen') G.fullscreenSince = null;
       toast('获得 ' + R.skill(card.unlock).name + '！', R.skill(card.unlock).color);
     } else {
       if (!G.cardLevels[card.id]) G.cardOrder.push(card.id);
@@ -393,15 +403,22 @@
   }
   function leaveMeta() { G.state = ['levelselect', 'endlessselect'].indexOf(G.metaReturn) >= 0 ? G.metaReturn : 'menu'; G.metaReturn = null; }
   function loadoutReady() { return G.progress.candidates.length === C.loadout.candidates; }
-  function canSelectLevel() { return loadoutReady(); }
+  function canSelectLevel() { return loadoutReady() || isEndlessUnlocked(); }
   function openLevelSelect() {
     if (!canSelectLevel()) {
       toast('请先选满 7 个候选技能（当前 ' + G.progress.candidates.length + '/7）', '#ffd166');
       return false;
     }
-    bankCoins(); G.state = 'levelselect'; return true;
+    bankCoins(); G.pageTurn = null; G.state = 'levelselect'; return true;
   }
-  function openEndlessSelect() { bankCoins(); G.paused = false; G.state = 'endlessselect'; return true; }
+  function openEndlessSelect() { bankCoins(); G.paused = false; G.pageTurn = null; G.state = 'endlessselect'; return true; }
+  function changeSelectionPage(delta) {
+    if (G.state !== 'levelselect' && G.state !== 'endlessselect') return false;
+    var page = G.state === 'levelselect' ? 0 : 1, next = page + delta;
+    if (next < 0 || next > 1 || next === page || (G.pageTurn && G.pageTurn.time > 0)) return false;
+    G.pageTurn = { from: page, to: next, time: .24, duration: .24, direction: delta };
+    G.state = next === 0 ? 'levelselect' : 'endlessselect'; return true;
+  }
   function returnToSelection() { return isEndless() ? openEndlessSelect() : openLevelSelect(); }
   function canContinue() { return !isEndless() && G.result && G.result.stars > 0 && G.selectedLevel + 1 < C.levels.length; }
   function ownedCards() {
@@ -424,8 +441,8 @@
     state: G, combat: combat, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openEndlessSelect: openEndlessSelect, returnToSelection: returnToSelection, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
     isLevelUnlocked: isLevelUnlocked, isEndless: isEndless, isEndlessUnlocked: isEndlessUnlocked, loadoutReady: loadoutReady, canSelectLevel: canSelectLevel, canContinue: canContinue, calculateStars: calculateStars,
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
-    ownedSkills: ownedSkills, selectSkill: selectSkill, changeSkillPage: changeSkillPage,
-    recompute: recomputeDerived, refreshChoices: refreshChoices,
+    ownedSkills: ownedSkills, selectSkill: selectSkill, changeSkillPage: changeSkillPage, changeSelectionPage: changeSelectionPage,
+    recompute: recomputeDerived, refreshChoices: refreshChoices, fullscreenChance: fullscreenChance,
     openMeta: openMeta, leaveMeta: leaveMeta, buyMeta: buyMeta, metaCost: metaCost, totalStars: totalStars, bankCoins: bankCoins,
     pause: function (value) { G.paused = value; G.last = P.now(); },
     toast: toast, dangerY: dangerY, waveConfig: waveConfig

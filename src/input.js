@@ -6,6 +6,11 @@
   function tap(x, y) {
     var tapAt = P.now(); if (tapAt - lastTapAt < 250) return; lastTapAt = tapAt;
     var G = GP.state; A.unlock();
+    if (G.state === 'levelselect' || G.state === 'endlessselect') {
+      if (G.pageTurn && G.pageTurn.time > 0) return;
+      if (inside(x, y, G.ui.selectPrev)) { GP.changeSelectionPage(-1); return; }
+      if (inside(x, y, G.ui.selectNext)) { GP.changeSelectionPage(1); return; }
+    }
     if (G.state === 'meta') {
       var rows = G.ui.metaRows || [];
       for (var r = 0; r < rows.length; r++) if (inside(x, y, rows[r])) { GP.buyMeta(rows[r].id); return; }
@@ -15,7 +20,7 @@
     if (G.state === 'menu') {
       var candidates = G.ui.candidates || [];
       for (var j = 0; j < candidates.length; j++) if (inside(x, y, candidates[j])) { GP.toggleCandidate(candidates[j].id); return; }
-      if (inside(x, y, G.ui.shop)) GP.openMeta(); else if (inside(x, y, G.ui.endless)) GP.openEndlessSelect(); else if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
+      if (inside(x, y, G.ui.shop)) GP.openMeta(); else if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
     if (G.state === 'endlessselect') {
       if (inside(x, y, G.ui.menu)) GP.openMenu();
       else if (inside(x, y, G.ui.shop)) GP.openMeta();
@@ -25,7 +30,6 @@
     if (G.state === 'levelselect') {
       if (inside(x, y, G.ui.menu)) { GP.openMenu(); return; }
       if (inside(x, y, G.ui.shop)) { GP.openMeta(); return; }
-      if (inside(x, y, G.ui.endless)) { GP.openEndlessSelect(); return; }
       for (var l = 0; l < G.ui.levelButtons.length; l++) { var item = G.ui.levelButtons[l];
         if (inside(x, y, item) && item.unlocked) { GP.resetRun(item.index); return; } }
       return;
@@ -62,6 +66,9 @@
       canvas.addEventListener('pointerdown', function (event) { var point = P.logical(event.clientX, event.clientY, canvas.getBoundingClientRect()); tap(point.x, point.y); });
       window.addEventListener('keydown', function (event) { var G = GP.state;
         if (event.code === 'Space' && G.state === 'menu') { event.preventDefault(); A.unlock(); GP.openLevelSelect(); }
+        else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && (G.state === 'levelselect' || G.state === 'endlessselect')) {
+          event.preventDefault(); GP.changeSelectionPage(event.key === 'ArrowLeft' ? -1 : 1);
+        }
         else if ((event.key === 'p' || event.key === 'P') && G.state === 'playing') GP.pause(!G.paused);
         else if (event.key === 'm' || event.key === 'M') GP.toast(A.toggle() ? '已静音' : '声音开启', '#cdd6ee');
       });

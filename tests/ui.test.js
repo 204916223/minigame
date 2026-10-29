@@ -36,6 +36,19 @@ test('不足七个候选时点击、空格和选关接口均不能进入；补�
  }
  h.GP.openMenu();h.GP.openMeta();h.GP.leaveMeta();assert.equal(h.GP.openLevelSelect(),true);
 });
+test('选关方向键翻页，动画期间不误点开战或反向翻页，结束后恢复点击',()=>{
+ const h=createGame({stars:[1,1,1]});h.PM.Input.bind();h.GP.openLevelSelect();h.PM.Renderer.render(0);
+ let prevented=0;const key=value=>h.events.keydown({key:value,preventDefault(){prevented++;}});
+ key('ArrowRight');h.PM.Renderer.render(.05);assert.equal(h.G.state,'endlessselect');assert.ok(h.G.pageTurn.time>0);
+ key('ArrowLeft');assert.equal(h.G.state,'endlessselect');
+ const start=h.G.ui.endlessStart;h.advanceClock(300);h.PM.Input.tap(start.x+start.w/2,start.y+start.h/2);
+ assert.equal(h.G.state,'endlessselect');assert.equal(h.G.mode,'campaign');
+ h.PM.Renderer.render(.2);key('ArrowLeft');h.PM.Renderer.render(.3);assert.equal(h.G.state,'levelselect');
+ key('ArrowLeft');assert.equal(h.G.state,'levelselect');assert.equal(prevented,4);
+ const level=h.G.ui.levelButtons[0];h.advanceClock(300);h.PM.Input.tap(level.x+level.w/2,level.y+level.h/2);
+ assert.equal(h.G.state,'playing');assert.equal(h.G.mode,'campaign');
+ key('ArrowRight');assert.equal(h.G.state,'playing');assert.equal(prevented,4);
+});
 test('微信 GameGlobal 和当前存储分支能加载新模块、清洗并渲染',()=>{
  const h=createGame({stars:[1],coins:77,meta:{hp:2}},1,true);
  assert.equal(h.PM.Platform.isWx,true);assert.equal(h.G.progress.coins,77);assert.equal(h.G.progress.meta.hp,2);

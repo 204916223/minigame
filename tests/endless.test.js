@@ -8,23 +8,25 @@ function endless(progress={}){
 function click(h,rect){h.advanceClock(300);h.PM.Input.tap(rect.x+rect.w/2,rect.y+rect.h/2);h.PM.Renderer.render(0);}
 function totalXP(h){let total=h.G.player.xp;for(let lvl=1;lvl<h.G.player.lvl;lvl++)total+=h.GP.xpNeed(lvl);return total;}
 
-test('无尽为独立页面，前三关通关才可开始；空备战仅能进入无尽，不进入普通选关',()=>{
+test('两页选关：默认常规，左右翻页进入无尽；空备战仅在无尽解锁后可进入',()=>{
  for(const stars of [[],[1],[1,1],[0,1,1],[1,0,1],[1,1,0],[1,1,1]]){
-  const h=createGame({stars,candidates:[]}),unlocked=stars.length===3&&stars.every(n=>n>0);
-  assert.equal(h.GP.isEndlessUnlocked(),unlocked);assert.equal(h.GP.canSelectLevel(),false);
-  assert.equal(h.GP.openLevelSelect(),false);h.PM.Renderer.render(0);
-  click(h,h.G.ui.endless);assert.equal(h.G.state,'endlessselect');
+  const unlocked=stars.length===3&&stars.every(n=>n>0),h=createGame({stars,candidates:unlocked?[]:undefined});
+  h.GP.openLevelSelect();h.PM.Renderer.render(0);assert.equal(h.G.state,'levelselect');
+  assert.equal(h.G.ui.levelButtons.length,5);assert.equal(h.GP.changeSelectionPage(-1),false);
+  if(unlocked){assert.ok(h.G.ui.levelButtons.every(r=>!r.unlocked));}
+  click(h,h.G.ui.selectNext);h.PM.Renderer.render(.3);assert.equal(h.G.state,'endlessselect');
   click(h,h.G.ui.endlessStart);assert.equal(h.G.state,unlocked?'playing':'endlessselect');
   if(unlocked){assert.equal(h.G.mode,'endless');assert.equal(h.GP.ownedSkills(),1);}
  }
  const h=createGame({stars:[1,1,1]});h.GP.openLevelSelect();h.PM.Renderer.render(0);
- const rows=h.G.ui.levelButtons;assert.equal(rows.length,5);assert.deepEqual(Array.from(rows,r=>r.index),[0,1,2,3,4]);
+ const rows=h.G.ui.levelButtons;assert.deepEqual(Array.from(rows,r=>r.index),[0,1,2,3,4]);
  rows.forEach((r,i)=>{assert.ok(r.x>=0&&r.x+r.w<=h.C.width);if(i)assert.ok(r.y>=rows[i-1].y+rows[i-1].h);});
- assert.ok(rows.at(-1).y+rows.at(-1).h<h.G.ui.endless.y);
- click(h,h.G.ui.endless);assert.equal(h.G.state,'endlessselect');
+ assert.ok(rows.at(-1).y+rows.at(-1).h<h.G.ui.selectNext.y);
+ click(h,h.G.ui.selectNext);h.PM.Renderer.render(.3);assert.equal(h.G.state,'endlessselect');
+ assert.equal(h.GP.changeSelectionPage(1),false);
  click(h,h.G.ui.shop);assert.equal(h.G.state,'meta');click(h,h.G.ui.metaBack);assert.equal(h.G.state,'endlessselect');
- click(h,h.G.ui.menu);assert.equal(h.G.state,'menu');click(h,h.G.ui.start);click(h,h.G.ui.levelButtons[0]);
- assert.equal(h.G.mode,'campaign');assert.equal(h.G.state,'playing');
+ click(h,h.G.ui.selectPrev);h.PM.Renderer.render(.3);assert.equal(h.G.state,'levelselect');
+ click(h,h.G.ui.levelButtons[0]);assert.equal(h.G.mode,'campaign');assert.equal(h.G.state,'playing');
 });
 
 test('无尽每波准确生成1000普通、3小首领、2大首领，跨过第十波继续且不写星级',()=>{

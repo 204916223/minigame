@@ -29,7 +29,7 @@ test('同攻击方式下高伤技能更慢且初始目标不更多，满冷却�
 test('每第三次选择保底新技能和强化，刷新不推进轮次且保留保底', () => {
   const h = run();
   // 大强化池下，新技能保底仍必须兑现。仅留一种水系新技能，避免元素限制干扰。
-  h.equip(['laser','blackhole','chain','fireball']); h.G.candidates = ['waterball'];
+  h.equip(['laser','chain','fireball','icecone']); h.G.candidates = ['waterball'];
   for (let round = 1; round <= 9; round++) {
     if (round % 3 === 0) h.G.choiceHistory = [[], []];
     open(h); assert.equal(h.G.choicesCompleted, round - 1);

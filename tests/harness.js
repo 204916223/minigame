@@ -45,6 +45,6 @@ function createGame(progress, seed = 1, wechat = false, initialStorage = {}) {
     G.choices = [choice]; return GP.applyChoice(choice);
   }
   function frames(n) { for (let i = 0; i < n; i++) { clock += 1000 / 60; GP.update(1 / 60); } }
-  return { random: math.random, PM, C: PM.Config, R: PM.Rules, GP, G, target, equip, take, frames, storage, events, generatedEvents, advanceClock: ms => { clock += ms; } };
+  return { random: math.random, setRandom: fn => { math.random = fn; }, PM, C: PM.Config, R: PM.Rules, GP, G, target, equip, take, frames, storage, events, generatedEvents, advanceClock: ms => { clock += ms; } };
 }
 module.exports = { createGame };

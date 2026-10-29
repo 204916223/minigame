@@ -52,7 +52,7 @@ for (const wechat of [false, true]) {
     for (const r of [h.G.ui.endlessStart, h.G.ui.menu, h.G.ui.shop]) {
       assert.ok(r.y >= h.PM.Platform.safeTop()); assert.ok(r.y + r.h <= h.PM.Platform.safeBottom());
     }
-    h.GP.openMenu(); h.PM.Renderer.render(0); assert.ok(h.G.ui.endless.y + h.G.ui.endless.h <= h.PM.Platform.safeBottom());
+    for (const r of [h.G.ui.selectPrev, h.G.ui.selectNext]) assert.ok(r.y + r.h <= h.PM.Platform.safeBottom());
   });
 }
 test('已有 v3 存档补零纪录且保留进度；非法纪录清洗，不改变存档空间', () => {

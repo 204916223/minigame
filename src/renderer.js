@@ -199,18 +199,17 @@
     text(G.toast.time > 0 ? G.toast.text : '怪物颜色代表元素，同属性攻击伤害减半', 26, 513, 12, G.toast.time > 0 ? '#ffd166' : '#aeb8d2', 'left', 'middle');
     var ready = GP.canSelectLevel();
     G.ui.start = { x: 26, y: 533, w: 270, h: 46 };
-    button(G.ui.start, ready ? '普通关 · 选择关卡' : '普通关 · 备战 ' + candidates.length + '/7', ready ? '#33b3e6' : '#1b2438', ready ? '#05121c' : '#8b95b3');
+    button(G.ui.start, ready ? '选 择 关 卡' : '普通关 · 备战 ' + candidates.length + '/7', ready ? '#33b3e6' : '#1b2438', ready ? '#05121c' : '#8b95b3');
     G.ui.shop = { x: 310, y: 533, w: 144, h: 46 }; button(G.ui.shop, '局 外 强 化', '#26324f', '#cdd6ee');
-    G.ui.endless = { x: 26, y: 586, w: 428, h: 32 };
-    button(G.ui.endless, GP.isEndlessUnlocked() ? '∞ 无尽模式' : '∞ 无尽模式 · 前三关通关解锁', '#251c3e', '#c8afff');
+    text('选关共两页：常规关卡 / 无尽模式', C.width / 2, 606, 12, '#8b95b3', 'center', 'middle');
   }
   function drawStars(x, y, stars, flawless, size) { var c = ctx(), gap = size + 12, start = x - gap;
     for (var i = 0; i < 3; i++) { if (flawless) { c.strokeStyle = '#fff3a3'; c.lineWidth = 3; rounded(start + i * gap - size / 2 - 5, y - size / 2 - 5, size + 10, size + 10, 8); c.stroke(); }
       text('★', start + i * gap, y, size, i < stars ? '#ffd166' : '#26324f', 'center', 'middle', 'bold'); }
   }
-  function levelSelect() { var c = ctx(), G = GP.state; c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height); text('普 通 关 卡', C.width / 2, 48, 26, '#e8ecf7', 'center', 'middle', 'bold');
+  function levelSelect() { var c = ctx(), G = GP.state; c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height); text('常 规 关 卡', C.width / 2, 48, 26, '#e8ecf7', 'center', 'middle', 'bold');
     G.ui.levelButtons = [];
-    C.levels.forEach(function (level, i) { var unlocked = GP.isLevelUnlocked(i), y = 100 + i * 76, rect = { x: 55, y: y, w: 370, h: 60, index: i, unlocked: unlocked && GP.loadoutReady() }; G.ui.levelButtons.push(rect);
+    C.levels.forEach(function (level, i) { var unlocked = GP.isLevelUnlocked(i), y = 90 + i * 70, rect = { x: 55, y: y, w: 370, h: 60, index: i, unlocked: unlocked && GP.loadoutReady() }; G.ui.levelButtons.push(rect);
       rounded(rect.x, rect.y, rect.w, rect.h, 12); c.fillStyle = unlocked ? '#16203a' : '#0c111e'; c.fill(); c.strokeStyle = unlocked ? '#33456f' : '#20283b'; c.stroke();
       text((i + 1) + '. ' + level.name, rect.x + 18, y + 30, 16, rect.unlocked ? '#fff' : '#596176', 'left', 'middle', 'bold');
       if (unlocked && !GP.loadoutReady()) text('需选满 7 个备战技能',rect.x+350,y+30,10,'#8b95b3','right','middle');
@@ -218,10 +217,7 @@
     });
     var starTotal = 0; (G.progress.stars || []).forEach(function (n) { starTotal += n || 0; });
     text('星辉：第 2 关起每颗星 +15% 伤害' + (starTotal ? '（当前 ★' + starTotal + ' → +' + (starTotal * 15) + '%）' : ''),
-      C.width / 2, 614, 11, '#8b95b3', 'center', 'middle');
-    G.ui.endless = { x: 55, y: 490, w: 370, h: 38 }; button(G.ui.endless, '∞ 前往无尽模式', '#251c3e', '#c8afff');
-    G.ui.menu = { x: 55, y: 544, w: 170, h: 38 }; button(G.ui.menu, '返回配置候选', '#26324f', '#cdd6ee');
-    G.ui.shop = { x: 255, y: 544, w: 170, h: 38 }; button(G.ui.shop, '局外强化', '#26324f', '#cdd6ee');
+      C.width / 2, 480, 11, '#8b95b3', 'center', 'middle');
   }
   function endlessSelect() {
     var c = ctx(), G = GP.state, unlocked = GP.isEndlessUnlocked(), record = G.progress.endless;
@@ -243,9 +239,31 @@
     text(unlocked ? '已解锁 · 无需选择备战技能' : '前三关至少一星通关后解锁 · ' + clears + '/3', C.width / 2, 436, 13, unlocked ? '#7cff6b' : '#b7a5d6', 'center', 'middle');
     G.ui.endlessStart = { x: 55, y: 463, w: 370, h: 48 };
     button(G.ui.endlessStart, unlocked ? '开 始 无 尽 挑 战' : '尚 未 解 锁', unlocked ? '#a378fc' : '#1b2438', unlocked ? '#130a22' : '#717c98');
-    G.ui.menu = { x: 55, y: 535, w: 170, h: 40 }; button(G.ui.menu, '返回备战', '#26324f', '#cdd6ee');
-    G.ui.shop = { x: 255, y: 535, w: 170, h: 40 }; button(G.ui.shop, '局外强化', '#26324f', '#cdd6ee');
-    text('记录保存在当前设备 · 进入下一波即通过上一波', C.width / 2, 608, 11, '#8b95b3', 'center', 'middle');
+    text('记录保存在当前设备 · 进入下一波即通过上一波', C.width / 2, 419, 10, '#8b95b3', 'center', 'middle');
+  }
+  function selectionPages(dt) {
+    var c = ctx(), G = GP.state, page = G.state === 'levelselect' ? 0 : 1, turn = G.pageTurn;
+    function drawPage(index, offset) {
+      c.save(); c.translate(offset, 0);
+      if (index === 0) levelSelect(); else endlessSelect();
+      c.restore();
+    }
+    c.save(); c.beginPath(); c.rect(0, 0, C.width, 520); c.clip();
+    if (turn && turn.time > 0) {
+      turn.time = Math.max(0, turn.time - dt);
+      var t = 1 - Math.pow(turn.time / turn.duration, 3);
+      drawPage(turn.from, -turn.direction * t * C.width);
+      drawPage(page, turn.direction * (1 - t) * C.width);
+    } else drawPage(page, 0);
+    c.restore();
+    G.ui.selectPrev = { x: 55, y: 528, w: 60, h: 38 };
+    G.ui.selectNext = { x: 365, y: 528, w: 60, h: 38 };
+    button(G.ui.selectPrev, '‹', page === 1 ? '#26324f' : '#101522', page === 1 ? '#cdd6ee' : '#414b60');
+    button(G.ui.selectNext, '›', page === 0 ? '#26324f' : '#101522', page === 0 ? '#cdd6ee' : '#414b60');
+    text((page + 1) + ' / 2', C.width / 2, 541, 17, '#e8ecf7', 'center', 'middle', 'bold');
+    text(page === 0 ? '常规关卡' : '无尽模式', C.width / 2, 561, 11, '#8b95b3', 'center', 'middle');
+    G.ui.menu = { x: 55, y: 584, w: 170, h: 34 }; button(G.ui.menu, '返回备战', '#26324f', '#cdd6ee');
+    G.ui.shop = { x: 255, y: 584, w: 170, h: 34 }; button(G.ui.shop, '局外强化', '#26324f', '#cdd6ee');
   }
   function levelUp() {
     var c = ctx(), G = GP.state;
@@ -268,6 +286,7 @@
     G.ui.refresh = { x: 160, y: 526, w: 160, h: 40 }; button(G.ui.refresh, '刷新 ×' + G.refreshes, G.refreshes ? '#1b4b5f' : '#141c30', G.refreshes ? '#63e6be' : '#5b6787');
     text('每 3 次选择保底新技能（有合资格候选时）；刷新不计次', C.width / 2, 580, 11, '#aeb8d2', 'center', 'middle');
     text(GP.isEndless() ? '每通过 3 波获得一次刷新 · 特殊强化满级后仅剩两类伤害卡' : '通过第 3 / 6 / 9 波各获得一次刷新', C.width / 2, 597, 11, '#aeb8d2', 'center', 'middle');
+    if (GP.fullscreenChance()) text('本轮全屏概率 ' + GP.fullscreenChance() + '% · 未选择继续累计，选中后重置', C.width / 2, 614, 10, '#c8afff', 'center', 'middle');
   }
   function metaScreen() { var c = ctx(), G = GP.state; c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height);
     text('局 外 强 化', C.width / 2, 52, 26, '#e8ecf7', 'center', 'middle', 'bold');
@@ -315,7 +334,7 @@
   function formatTime(ms) { var seconds = Math.floor(ms / 1000), minutes = Math.floor(seconds / 60); return (minutes < 10 ? '0' : '') + minutes + ':' + ('0' + seconds % 60).slice(-2); }
   function render(dt) { var c = ctx(), G = GP.state; P.beginFrame(); background(dt);
     if (G.state !== 'playing') G.toast.time = Math.max(0, G.toast.time - dt);
-    if (G.state === 'menu') menu(); else if (G.state === 'levelselect') levelSelect(); else if (G.state === 'endlessselect') endlessSelect(); else if (G.state === 'meta') metaScreen(); else {
+    if (G.state === 'menu') menu(); else if (G.state === 'levelselect' || G.state === 'endlessselect') selectionPages(dt); else if (G.state === 'meta') metaScreen(); else {
       c.save(); if (G.shake > 0) c.translate((Math.random() - .5) * G.shake, (Math.random() - .5) * G.shake); battlefield(); c.restore(); hud(); skills();
       var sidebarTop = Math.max(90, P.safeTop() + 84); bondSidebar(sidebarTop); enhancementSidebar(sidebarTop);
       if (G.toast.time > 0 && G.state === 'playing') text(G.toast.text, C.width / 2, Math.max(132, P.safeTop() + 116), 18, G.toast.color, 'center', 'middle', 'bold');
