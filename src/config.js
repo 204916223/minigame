@@ -38,8 +38,6 @@
     spawnGroupRandom: 2,
     spawnGroupMax: 28,
     spawnGroupTimeFactor: 1.0,
-    /* 武器槽上限：占满后卡池不再发「获得新武器」的解锁卡，只强化已有武器 */
-    weaponSlots: 5,
     waveCount: WAVE_KILLS.length,
     hero: { x: 240, y: 552 },
 
@@ -48,10 +46,11 @@
      levelEnemyGrowth：主角每升 1 级，场上和之后刷出的怪防御/血量/速度线性 +5% */
     curve: { waveHpGrowth: 1.035, waveDmgGrowth: 1.018, spawnGrowth: 0.0018, openingRelief: 1.0, openingReliefWaves: 0, levelEnemyGrowth: 1.05 },
     /* 控制上限：冰冻最长 2s（受抗性衰减），击退不能把怪推出屏幕 */
-    control: { freezeCap: 2, knockMinY: -20 },
+    control: { freezeCap: 2, knockMinY: 8 },
     /* 交战线：敌人必须先走进画面（y >= enterY）才会被锁定/溅射/传导/灼烧，
        否则武器会在屏幕外就把怪杀掉，玩家看不到敌人出场 */
-    combat: { enterY: 8 },
+    combat: { enterY: 8, radius: 55, duration: 3, projectileSpeed: 400,
+      knock: 30, freeze: 1, chainRange: 110, zoneTick: 1, zoneDamageRatio: .25, persistentTick: 1 },
     /* 星辉：从第二关起，每颗已获得的星给全队伤害 +15%（加法叠加），
        用来奖励三星通关并托住后期难度 */
     starBonus: { perStar: 0.15, fromLevel: 1 },
@@ -82,107 +81,71 @@
     },
     /* 出场顺序即强度顺序，每一项严格强于前一项；resist 减免对应元素的控制效果 */
     enemyTypes: {
-      grunt:  { spr: 'slime',  cell: 3, hp: 2.2, spd: 25, xp: 1, dmg: 2.5, color: '#7cff6b', r: 13,
+      grunt:  { def: 0.1, spr: 'slime',  cell: 3, hp: 2.2, spd: 25, xp: 1, dmg: 2.5, color: '#7cff6b', r: 13,
         resist: { freeze: 0, knock: 0, poison: 0 } },
-      runner: { spr: 'runner', cell: 3, hp: 3,   spd: 46, xp: 2, dmg: 3,   color: '#ffd166', r: 10,
+      runner: { def: 0.2, spr: 'runner', cell: 3, hp: 3,   spd: 46, xp: 2, dmg: 3,   color: '#ffd166', r: 10,
         resist: { freeze: 0.10, knock: 0.15, poison: 0 } },
-      bat:    { spr: 'bat',    cell: 3, hp: 4.5, spd: 34, xp: 3, dmg: 4,   color: '#ff5d6c', r: 12, sway: true,
+      bat:    { def: 0.3, spr: 'bat',    cell: 3, hp: 4.5, spd: 34, xp: 3, dmg: 4,   color: '#ff5d6c', r: 12, sway: true,
         resist: { freeze: 0.20, knock: 0.35, poison: 0.10 } },
-      tank:   { spr: 'tank',   cell: 4, hp: 9,   spd: 14, xp: 6, dmg: 7,   color: '#b197fc', r: 19,
+      tank:   { def: 0.8, spr: 'tank',   cell: 4, hp: 9,   spd: 14, xp: 6, dmg: 7,   color: '#b197fc', r: 19,
         resist: { freeze: 0.35, knock: 0.70, poison: 0.20 } },
-      boss:   { spr: 'boss',   cell: 6, hp: 38,  spd: 9,  xp: 30, dmg: 18, color: '#ff8787', r: 30, boss: true,
+      boss:   { def: 1, spr: 'boss',   cell: 6, hp: 38,  spd: 9,  xp: 30, dmg: 18, color: '#ff8787', r: 30, boss: true,
         resist: { freeze: 0.60, knock: 0.85, poison: 0.35 } }
     },
 
-    /* 六系武器：各自独立冷却、独立伤害、独立数量与特效结算
-       basic 快 / fire 高伤 / wind 击退 / thunder 传导 / frost 冰冻 / poison 持续伤害 */
-    weapons: [
-      { id: 'basic', name: '普通攻击', icon: '⊕', color: '#8fe9ff', kind: 'homing', shape: 'bolt',
-        cdBase: 2000, dmgBase: 3.6, countBase: 1, pierceBase: 0, speed: 470, turn: 11, r: 4,
-        tag: '2s 一发，唯一快攻' },
-      { id: 'fire', name: '火系法术', icon: '✹', color: '#ff922b', kind: 'lob', shape: 'orb',
-        cdBase: 5500, dmgBase: 26, countBase: 1, speed: 300, r: 8, splash: 74, splashRatio: 0.6,
-        tag: '6s 一发，落点溅射' },
-      { id: 'wind', name: '风系法术', icon: '≋', color: '#9be15d', kind: 'homing', shape: 'gale',
-        cdBase: 5000, dmgBase: 3.4, countBase: 2, speed: 420, turn: 6, r: 7, knock: 54,
-        tag: '5s 一轮，把敌人吹退' },
-      { id: 'thunder', name: '雷系法术', icon: '⚡', color: '#ffe066', kind: 'instant', shape: 'instant',
-        cdBase: 6000, dmgBase: 8, countBase: 1, speed: 0, turn: 0, r: 0,
-        chain: 10, chainRange: 130, chainDecay: 0.85, tag: '7s 一道，即时落雷传导 10 目标' },
-      { id: 'frost', name: '冰系法术', icon: '❄', color: '#74c0fc', kind: 'homing', shape: 'shard',
-        cdBase: 6000, dmgBase: 4.2, countBase: 1, speed: 300, turn: 9, r: 6, freeze: 0.9,
-        tag: '6.5s 一支，冻住敌人' },
-      { id: 'poison', name: '毒系法术', icon: '☣', color: '#a9e34b', kind: 'lob', shape: 'blob',
-        cdBase: 7000, dmgBase: 3, countBase: 1, speed: 260, r: 7, splash: 46, splashRatio: 0.5,
-        dotDps: 1.5, dotDur: 5, tag: '8s 一坨，抛物毒液 + 持续掉血' }
-    ],
-
-    /* 卡池：cat = 强度（无副作用）/ 数量（掉伤害）/ 机制（掉伤害）/ 解锁（获得新武器）
-       gain 与 tax 同时生效：dmg、cd、freeze、knock、dotDur、chainDecay 走乘法；
-       count、pierce、child、burn、chain、toxic 走加法 */
-    cards: [
-      { id: 'b_split', weapon: 'basic', cat: '数量', name: '齐射分裂', color: '#8fe9ff', max: 6,
-        gain: { count: 1 }, tax: { dmg: 0.70 },
-        desc: function (lv) { return '弹道 +1（当前 ' + (1 + lv) + ' 发）'; }, cost: '每发伤害 -30%' },
-      { id: 'b_power', weapon: 'basic', cat: '强度', name: '高爆弹药', color: '#ffd166', max: 5,
-        gain: { dmg: 1.40 }, desc: function () { return '普攻伤害 +40%（乘法叠加）'; } },
-      { id: 'b_rapid', weapon: 'basic', cat: '强度', name: '快速装填', color: '#a3bffa', max: 4,
-        gain: { cd: 0.86 }, desc: function (lv) { return '冷却 -14%（当前 ' + (2 * Math.pow(0.86, lv)).toFixed(2) + 's）'; } },
-
-      { id: 'f_unlock', weapon: 'fire', cat: '解锁', name: '火系法术', color: '#ff922b', max: 1, unlock: 'fire',
-        desc: function () { return '获得火系：6s 一发重火球，落点溅射'; } },
-      { id: 'f_power', weapon: 'fire', cat: '强度', name: '烈焰核心', color: '#ff922b', max: 4,
-        gain: { dmg: 1.40 }, desc: function () { return '火球伤害 +40%（乘法叠加）'; } },
-      { id: 'f_count', weapon: 'fire', cat: '数量', name: '双球齐出', color: '#ffa94d', max: 2,
-        gain: { count: 1 }, tax: { dmg: 0.70 },
-        desc: function (lv) { return '火球 +1（当前 ' + (1 + lv) + ' 颗）'; }, cost: '每颗伤害 -30%' },
-      { id: 'f_burn', weapon: 'fire', cat: '机制', name: '烧伤地带', color: '#ff6b6b', max: 2,
-        gain: { burn: 1 }, tax: { dmg: 0.80 },
-        desc: function (lv) { return '落点留下烧伤区 5s，每 0.4s 灼烧 ' + (1.6 * lv).toFixed(1); }, cost: '火球伤害 -20%' },
-
-      { id: 'w_unlock', weapon: 'wind', cat: '解锁', name: '风系法术', color: '#9be15d', max: 1, unlock: 'wind',
-        desc: function () { return '获得风系：5s 两股气刃，命中把敌人向后吹退'; } },
-      { id: 'w_power', weapon: 'wind', cat: '强度', name: '风暴之怒', color: '#9be15d', max: 4,
-        gain: { dmg: 1.40 }, desc: function () { return '气刃伤害 +40%（乘法叠加）'; } },
-      { id: 'w_count', weapon: 'wind', cat: '数量', name: '气刃分裂', color: '#b2f2bb', max: 3,
-        gain: { count: 1 }, tax: { dmg: 0.70 },
-        desc: function (lv) { return '气刃 +1（当前 ' + (2 + lv) + ' 股）'; }, cost: '每股伤害 -30%' },
-      { id: 'w_knock', weapon: 'wind', cat: '机制', name: '飓风冲击', color: '#66a80f', max: 2,
-        gain: { knock: 1.60 }, tax: { dmg: 0.80 },
-        desc: function (lv) { return '击退距离 +60%（' + Math.round(54 * Math.pow(1.6, lv)) + 'px）'; }, cost: '每股伤害 -20%' },
-
-      { id: 't_unlock', weapon: 'thunder', cat: '解锁', name: '雷系法术', color: '#ffe066', max: 1, unlock: 'thunder',
-        desc: function () { return '获得雷系：7s 一道即时落雷，向附近传导最多 10 个目标'; } },
-      { id: 't_power', weapon: 'thunder', cat: '强度', name: '高压电容', color: '#ffe066', max: 4,
-        gain: { dmg: 1.40 }, desc: function () { return '闪电伤害 +40%（乘法叠加）'; } },
-      { id: 't_chain', weapon: 'thunder', cat: '机制', name: '超导网络', color: '#ffd43b', max: 4,
-        gain: { chain: 5 }, tax: { dmg: 0.85 },
-        desc: function (lv) { return '传导目标 +5（当前 ' + (10 + lv * 5) + ' 个）'; }, cost: '每跳伤害 -15%' },
-      { id: 't_count', weapon: 'thunder', cat: '数量', name: '双重放电', color: '#fab005', max: 2,
-        gain: { count: 1 }, tax: { dmg: 0.70 },
-        desc: function (lv) { return '同时落下 ' + (1 + lv) + ' 道闪电'; }, cost: '每道伤害 -30%' },
-
-      { id: 'i_unlock', weapon: 'frost', cat: '解锁', name: '冰系法术', color: '#74c0fc', max: 1, unlock: 'frost',
-        desc: function () { return '获得冰系：6.5s 一支冰晶，冻住敌人 0.9s（受抗性影响）'; } },
-      { id: 'i_power', weapon: 'frost', cat: '强度', name: '极寒核心', color: '#74c0fc', max: 4,
-        gain: { dmg: 1.40 }, desc: function () { return '冰锥伤害 +40%（乘法叠加）'; } },
-      { id: 'i_freeze', weapon: 'frost', cat: '机制', name: '霜冻延长', color: '#a5d8ff', max: 2,
-        gain: { freeze: 1.55 }, tax: { dmg: 0.85 },
-        desc: function (lv) { return '冰冻时长 +55%（上限 2s，当前 ' + Math.min(2, 0.75 * Math.pow(1.55, lv)).toFixed(2) + 's）'; }, cost: '冰锥伤害 -15%' },
-      { id: 'i_count', weapon: 'frost', cat: '数量', name: '冰锥分裂', color: '#4dabf7', max: 3,
-        gain: { count: 1 }, tax: { dmg: 0.70 },
-        desc: function (lv) { return '冰锥 +1（当前 ' + (1 + lv) + ' 支）'; }, cost: '每支伤害 -30%' },
-
-      { id: 'p_unlock', weapon: 'poison', cat: '解锁', name: '毒系法术', color: '#a9e34b', max: 1, unlock: 'poison',
-        desc: function () { return '获得毒系：8s 一坨抛物毒液，命中上毒 5s 持续掉血'; } },
-      { id: 'p_power', weapon: 'poison', cat: '强度', name: '剧毒浓缩', color: '#a9e34b', max: 4,
-        gain: { dmg: 1.40 }, desc: function () { return '毒伤与直接伤害 +40%（乘法叠加）'; } },
-      { id: 'p_dur', weapon: 'poison', cat: '机制', name: '蔓延瘟疫', color: '#94d82d', max: 2,
-        gain: { dotDur: 1.50 }, tax: { dmg: 0.85 },
-        desc: function (lv) { return '中毒持续 +50%（当前 ' + (4 * Math.pow(1.5, lv)).toFixed(1) + 's）'; }, cost: '毒伤 -15%' },
-      { id: 'p_burst', weapon: 'poison', cat: '机制', name: '腐爆', color: '#66a80f', max: 1,
-        gain: { toxic: 1 }, tax: { dmg: 0.80 },
-        desc: function () { return '中毒敌人死亡时炸出毒雾区 5s，继续传染'; }, cost: '毒伤 -20%' }
+    // 图中空白冷却、半径、持续时间是试玩初值；有区间的冷却从最大值开始。
+    power: { base: 10 },
+    loadout: { candidates: 7, slots: 6, initial: 'basic',
+      defaults: ['laser', 'blackhole', 'chain', 'lightning', 'waterball', 'geyser', 'fireball'] },
+    elements: {
+      physical: { name: '物理', color: '#8fe9ff', icon: '⊕' },
+      elec: { name: '电', color: '#ffe066', icon: '⚡' },
+      fire: { name: '火', color: '#ff922b', icon: '✹' },
+      wind: { name: '风', color: '#9be15d', icon: '≋' },
+      ice: { name: '冰', color: '#74c0fc', icon: '❄' },
+      water: { name: '水', color: '#38bdf8', icon: '◉' },
+      poison: { name: '毒', color: '#a9e34b', icon: '☣' }
+    },
+    // cap 为卡自身上限，羁绊在其外相加。totalCap 表示含基础数量。
+    factions: {
+      cooldown: { name: '冷却', step: .05, cap: .5, bond: [.05, .15] },
+      duration: { name: '持续', step: .5, cap: 5, bond: [.5, 1.5] },
+      range: { name: '范围', step: .05, cap: .5, bond: [.05, .15] },
+      breach: { name: '破防', step: .05, cap: .5, bond: [.05, .15] },
+      multi: { name: '多重', step: 1, cap: 10, totalCap: true, bond: [1, 3] },
+      split: { name: '分裂', step: 1, cap: 5, totalCap: true, bond: [1, 3] },
+      slow: { name: '减速', step: .05, cap: .5, bond: [.05, .15] },
+      knock: { name: '击退', step: .05, cap: .5, bond: [.05, .15] },
+      freeze: { name: '冰冻', step: .1, cap: .5, bond: [.05, .15] },
+      pierce: { name: '穿透', step: 1, cap: 5, totalCap: true, bond: [1, 3] },
+      gather: { name: '聚集', step: 1, cap: 20, totalCap: true },
+      chain: { name: '传导', step: 5, cap: 50, totalCap: true },
+      bounce: { name: '折射', step: 1, cap: 5, totalCap: true },
+      damage: { name: '技能伤害', step: .2 },
+      attribute: { name: '属性伤害', step: .1 }
+    },
+    skills: [
+      { id: 'basic', name: '白银子弹', el: 'physical', mode: 'bolt', area: 'single', cd: 5, minCd: 1, ratio: 1, tags: ['cooldown','multi','split','pierce'] },
+      { id: 'laser', name: '折射激光', el: 'physical', mode: 'bolt', area: 'line', cd: 10, minCd: 5, ratio: 1.25, tags: ['cooldown','bounce'], bounces: 3 },
+      { id: 'blackhole', name: '黑洞', el: 'physical', mode: 'generate', area: 'area', cd: 6, ratio: 1.5, tags: ['cooldown','range','multi'] },
+      { id: 'chain', name: '闪电链接', el: 'elec', mode: 'bolt', area: 'line', cd: 2.5, ratio: .5, tags: ['cooldown','range','multi','slow','chain'], chains: 5 },
+      { id: 'lightning', name: '落雷', el: 'elec', mode: 'generate', area: 'area', cd: 4, ratio: 1, tags: ['cooldown','range','multi','slow'] },
+      { id: 'thunderstorm', name: '雷暴', el: 'elec', mode: 'fullscreen', area: 'all', cd: 15, ratio: 1, tags: ['cooldown','slow'], cond: { elec: 2, water: 2 } },
+      { id: 'fireball', name: '火球术', el: 'fire', mode: 'bolt', area: 'area', cd: 3, ratio: 1.25, tags: ['cooldown','duration','range','multi'] },
+      { id: 'meteor', name: '天火流星', el: 'fire', mode: 'generate', area: 'area', cd: 5, ratio: 1.5, tags: ['cooldown','duration','range','multi'] },
+      { id: 'firestorm', name: '火焰漩涡', el: 'fire', mode: 'fullscreen', area: 'all', cd: 15, ratio: .75, tags: ['cooldown'], cond: { fire: 2, wind: 2 } },
+      { id: 'windblade', name: '风刃', el: 'wind', mode: 'bolt', area: 'single', cd: 1.5, ratio: .5, tags: ['cooldown','multi','split','knock','pierce'] },
+      { id: 'tornado', name: '龙卷风', el: 'wind', mode: 'generate', area: 'area', cd: 5, ratio: 1, tags: ['cooldown','range','multi','gather'] },
+      { id: 'tidalwave', name: '排山倒海', el: 'wind', mode: 'fullscreen', area: 'all', cd: 15, ratio: .5, tags: ['cooldown','knock'], cond: { wind: 2, elec: 2 } },
+      { id: 'icecone', name: '冰锥', el: 'ice', mode: 'bolt', area: 'single', cd: 2.5, ratio: 1, tags: ['cooldown','multi','split','freeze'] },
+      { id: 'crystal', name: '结晶', el: 'ice', mode: 'generate', area: 'area', cd: 5, ratio: 1.25, tags: ['cooldown','range','multi','freeze'] },
+      { id: 'blizzard', name: '极寒风暴', el: 'ice', mode: 'fullscreen', area: 'all', cd: 15, ratio: .5, tags: ['cooldown','freeze'], cond: { ice: 2, wind: 2 } },
+      { id: 'waterball', name: '水球术', el: 'water', mode: 'bolt', area: 'single', cd: 2, ratio: .75, tags: ['cooldown','breach','multi','split'] },
+      { id: 'geyser', name: '喷涌', el: 'water', mode: 'generate', area: 'area', cd: 4, ratio: 1, tags: ['cooldown','range','breach','multi'] },
+      { id: 'flood', name: '水漫金山', el: 'water', mode: 'fullscreen', area: 'all', cd: 15, ratio: 1, tags: ['cooldown','breach'], cond: { water: 2, wind: 2 } },
+      { id: 'poisonbottle', name: '毒瓶', el: 'poison', mode: 'bolt', area: 'area', cd: 2, ratio: .75, tags: ['cooldown','duration','range','multi'] },
+      { id: 'miasma', name: '瘴雾', el: 'poison', mode: 'generate', area: 'area', cd: 4, ratio: .5, tags: ['cooldown','duration','range','multi'] },
+      { id: 'unknown', name: '不可知域', el: 'poison', mode: 'fullscreen', area: 'all', cd: 0, ratio: .1, tags: ['duration'], cond: { poison: 2 }, excludes: ['wind'], noCards: ['duration'], persistent: true }
     ],
 
     levels: [
@@ -218,4 +181,8 @@
         8.0)
     ]
   };
+  PM.Config.skills.forEach(function (s) {
+    var el = PM.Config.elements[s.el]; s.color = el.color; s.icon = el.icon;
+    s.minCd = s.minCd === undefined ? (s.cd ? Math.max(.25, s.cd * .2) : 0) : s.minCd;
+  });
 })(typeof GameGlobal !== 'undefined' ? GameGlobal : window);

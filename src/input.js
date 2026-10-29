@@ -12,8 +12,12 @@
       if (inside(x, y, G.ui.metaBack)) GP.leaveMeta();
       return;
     }
-    if (G.state === 'menu') { if (inside(x, y, G.ui.shop)) GP.openMeta(); else if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
+    if (G.state === 'menu') {
+      var candidates = G.ui.candidates || [];
+      for (var j = 0; j < candidates.length; j++) if (inside(x, y, candidates[j])) { GP.toggleCandidate(candidates[j].id); return; }
+      if (inside(x, y, G.ui.shop)) GP.openMeta(); else if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
     if (G.state === 'levelselect') {
+      if (inside(x, y, G.ui.menu)) { GP.openMenu(); return; }
       if (inside(x, y, G.ui.shop)) { GP.openMeta(); return; }
       for (var l = 0; l < G.ui.levelButtons.length; l++) { var item = G.ui.levelButtons[l];
         if (inside(x, y, item) && item.unlocked) { GP.resetRun(item.index); return; } }

@@ -46,7 +46,19 @@
     try {
       var raw = isWx ? wx.getStorageSync('pixelMowProgress') : localStorage.getItem('pixelMowProgress');
       if (!raw) return { stars: [] };
-      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+      var data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      var normalized = PM.Rules.progress(data);
+      if (JSON.stringify(data) !== JSON.stringify(normalized)) {
+        try {
+          if (!data || data.version !== 2) {
+            var key = 'pixelMowProgress.beforeV2';
+            if (isWx) { if (!wx.getStorageSync(key)) wx.setStorageSync(key, data); }
+            else if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(data));
+          }
+          saveProgress(normalized);
+        } catch (writeError) { /* 存储不可写时，仍使用已成功读取的数据。 */ }
+      }
+      return normalized;
     } catch (e) { return { stars: [] }; }
   }
   function saveProgress(data) {

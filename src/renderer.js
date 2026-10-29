@@ -1,11 +1,11 @@
 "use strict";
 (function (root) {
-  var PM = root.PixelMow = root.PixelMow || {}, C = PM.Config, P = PM.Platform, GP = PM.Gameplay;
+  var PM = root.PixelMow = root.PixelMow || {}, C = PM.Config, P = PM.Platform, GP = PM.Gameplay, R = PM.Rules;
   var gridOffset = 0;
   function ctx() { return P.ctx(); }
-  function weaponColor(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.color : '#bff4ff'; }
+  function skillColor(id) { var w = C.skills.filter(function (item) { return item.id === id; })[0]; return w ? w.color : '#bff4ff'; }
   /* 每系一套画法：普攻细长弹、火系火球拖尾、风系弯月刃、冰系菱形冰晶、毒系滴落毒液（雷系为即时落雷，无弹丸） */
-  function drawProjectile(b) { var c = ctx(), col = weaponColor(b.weapon);
+  function drawProjectile(b) { var c = ctx(), col = skillColor(b.skill);
     c.save(); c.translate(b.x, b.y); c.rotate(Math.atan2(b.vy, b.vx));
     if (b.shape === 'orb') { c.fillStyle = 'rgba(255,146,43,.30)'; c.fillRect(-b.r * 3.4, -b.r * .5, b.r * 3.4, b.r);
       c.fillStyle = col; c.beginPath(); c.arc(0, 0, b.r, 0, Math.PI * 2); c.fill();
@@ -22,8 +22,6 @@
     else { c.fillStyle = 'rgba(191,244,255,.35)'; c.fillRect(-b.r * 3, -1, b.r * 2.4, 2);
       c.fillStyle = col; c.fillRect(-b.r, -b.r * .55, b.r * 2, b.r * 1.1); }
     c.restore(); }
-  function weaponLevel(id) { var G = GP.state, sum = 0;
-    C.cards.forEach(function (card) { if (card.weapon === id && !card.unlock) sum += (G.cardLevels[card.id] || 0); }); return sum; }
   function rounded(x, y, w, h, r) { var c = ctx(); r = Math.min(r, w / 2, h / 2); c.beginPath(); c.moveTo(x + r, y);
     c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
   function text(value, x, y, size, color, align, baseline, weight) { var c = ctx(); c.font = (weight || '') + ' ' + size + 'px "PingFang SC","Microsoft YaHei",sans-serif';
@@ -42,16 +40,17 @@
     for (var y = -40 + gridOffset; y < C.height; y += 40) { c.beginPath(); c.moveTo(0, y + .5); c.lineTo(C.width, y + .5); c.stroke(); } }
   function battlefield() { var c = ctx(), G = GP.state, danger = GP.dangerY();
     c.fillStyle = 'rgba(255,93,108,.18)'; c.fillRect(0, danger - 12, C.width, 14); c.fillStyle = 'rgba(255,93,108,.55)'; c.fillRect(0, danger, C.width, 2);
-    G.zones.forEach(function (z) { var fade = Math.max(0, 1 - z.age / z.life), color = z.kind === 'poison' ? '#a9e34b' : '#ff7b2b';
+    G.zones.forEach(function (z) { var fade = Math.max(0, 1 - z.age / z.life), color = z.color || '#a9e34b';
       c.globalAlpha = fade * .26; c.fillStyle = color; c.beginPath(); c.arc(z.x, z.y, z.r, 0, Math.PI * 2); c.fill();
       c.globalAlpha = fade * .7; c.strokeStyle = color; c.lineWidth = 1; c.stroke(); }); c.globalAlpha = 1;
-    G.booms.forEach(function (b) { var k = b.age / b.life, radius = b.r * (.5 + k * .9); c.globalAlpha = (1 - k) * .85; c.strokeStyle = '#ffcf6b'; c.lineWidth = 4;
+    G.booms.forEach(function (b) { var k = b.age / b.life, radius = b.r * (.5 + k * .9); c.globalAlpha = (1 - k) * .85; c.strokeStyle = b.color || '#ffcf6b'; c.lineWidth = 4;
       c.beginPath(); c.arc(b.x, b.y, radius, 0, Math.PI * 2); c.stroke(); }); c.globalAlpha = 1;
-    G.arcs.forEach(function (a) { var k = 1 - a.age / a.life; c.globalAlpha = k; c.strokeStyle = '#ffe066'; c.lineWidth = 2;
+    G.arcs.forEach(function (a) { var k = 1 - a.age / a.life; c.globalAlpha = k; c.strokeStyle = a.color || '#ffe066'; c.lineWidth = 2;
       c.beginPath(); c.moveTo(a.x1, a.y1); var steps = 4;
       for (var s = 1; s < steps; s++) { var t = s / steps;
         c.lineTo(a.x1 + (a.x2 - a.x1) * t + (Math.random() - .5) * 12, a.y1 + (a.y2 - a.y1) * t + (Math.random() - .5) * 12); }
       c.lineTo(a.x2, a.y2); c.stroke(); c.globalAlpha = 1; });
+    G.sweeps.forEach(function (v) { c.globalAlpha = (1 - v.age / v.life) * .45; c.fillStyle = v.color; c.fillRect(0, C.height * (1 - v.age / v.life), C.width, 42); }); c.globalAlpha = 1;
     G.bullets.forEach(drawProjectile);
     G.enemies.forEach(function (e) { sprite(C.sprites[e.spr], e.x, e.y, e.cell);
       if (e.freezeT > 0) { c.globalAlpha = .5; c.fillStyle = '#74c0fc'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
@@ -77,33 +76,43 @@
     G.ui.pause = { x: C.width - 42, y: top + 30, w: 32, h: 26 }; rounded(G.ui.pause.x, G.ui.pause.y, 32, 26, 6); c.fillStyle = 'rgba(17,26,48,.9)'; c.fill(); c.strokeStyle = '#33456f'; c.stroke();
     c.fillStyle = '#cdd6ee'; c.fillRect(G.ui.pause.x + 10, G.ui.pause.y + 7, 3, 12); c.fillRect(G.ui.pause.x + 18, G.ui.pause.y + 7, 3, 12);
   }
-  function skills() { var c = ctx(), G = GP.state, size = 52, gap = 8, y = Math.min(C.height - size - 16, P.safeBottom() - size - 12);
-    var total = C.weapons.length, x0 = (C.width - (total * size + (total - 1) * gap)) / 2;
-    C.weapons.forEach(function (w, i) {
-      var x = x0 + i * (size + gap), state = G.weapons[w.id]; rounded(x, y, size, size, 11);
-      c.fillStyle = 'rgba(14,21,38,.9)'; c.fill(); c.lineWidth = 2;
-      c.strokeStyle = state && state.owned ? w.color : '#2c3a60'; c.stroke();
-      if (!state || !state.owned) { text('+', x + size / 2, y + size / 2 - 2, 20, '#3d4a70', 'center', 'middle', 'bold');
-        text(w.name.slice(0, 2), x + size / 2, y + size + 10, 9, '#5b6787', 'center', 'middle'); return; }
-      var d = state.derived, shownDmg = d.dmg * (G.player.damageMul || 1);
-      text(w.icon, x + size / 2, y + 18, 20, w.color, 'center', 'middle', 'bold');
-      var fraction = Math.max(0, Math.min(1, state.cd / d.cd));
-      if (fraction > 0) { c.save(); rounded(x, y, size, size, 11); c.clip(); c.beginPath(); c.moveTo(x + size / 2, y + size / 2);
-        c.arc(x + size / 2, y + size / 2, size, -Math.PI / 2, -Math.PI / 2 + fraction * Math.PI * 2); c.closePath(); c.fillStyle = 'rgba(4,8,16,.72)'; c.fill(); c.restore(); }
-      if (state.cd > 1) text((state.cd / 1000).toFixed(1), x + size / 2, y + 19, 12, '#fff', 'center', 'middle', 'bold');
-      text('×' + d.count + ' ' + (shownDmg < 10 ? shownDmg.toFixed(1) : Math.round(shownDmg)), x + size / 2, y + size - 9, 9, '#cdd6ee', 'center', 'middle', 'bold');
-      var lv = weaponLevel(w.id); if (lv) text('Lv' + lv, x + size - 4, y + 4, 9, '#ffd166', 'right', 'top', 'bold');
-      text(w.name.slice(0, 2), x + size / 2, y + size + 10, 9, '#8b95b3', 'center', 'middle');
-    });
-    var owned = GP.ownedWeapons();
-    text('武器 ' + owned + '/' + C.weaponSlots + (owned >= C.weaponSlots ? ' · 已满，只出强化卡' : ''), C.width / 2, y - 8, 10,
-      owned >= C.weaponSlots ? '#ffb27d' : '#5b6787', 'center', 'middle');
+  function skills() {
+    var c = ctx(), G = GP.state, size = 62, gap = 10, y = Math.min(C.height - size - 12, P.safeBottom() - size - 12);
+    var x0 = (C.width - (C.loadout.slots * size + (C.loadout.slots - 1) * gap)) / 2;
+    for (var i = 0; i < C.loadout.slots; i++) {
+      var x = x0 + i * (size + gap), id = G.equippedOrder[i], s = R.skill(id), state = s && G.skills[id];
+      rounded(x, y, size, size, 9); c.fillStyle = '#0e1526'; c.fill(); c.strokeStyle = s ? s.color : '#2c3a60'; c.stroke();
+      if (!s) { text('空', x + size / 2, y + 28, 15, '#5b6787', 'center', 'middle'); continue; }
+      var d = state.derived;
+      text(s.icon, x + size / 2, y + 18, 19, s.color, 'center', 'middle');
+      text(s.name, x + size / 2, y + 38, 11, '#e8ecf7', 'center', 'middle');
+      text(s.persistent ? '常驻' : (Math.max(0, state.cd) / 1000).toFixed(1) + 's', x + size / 2, y + 53, 10, '#aeb8d2', 'center', 'middle');
+    }
+    var counts = R.bonds(G), active = Object.keys(counts).filter(function (tag) { return C.factions[tag].bond && counts[tag] >= 2; });
+    text('装备 ' + GP.ownedSkills() + '/6', x0, y - 8, 10, '#aeb8d2', 'left', 'middle');
+    var bondLabels = active.map(function (tag) { return C.factions[tag].name + (counts[tag] >= 4 ? '④' : '②'); });
+    text('羁绊 ' + (bondLabels.slice(0, 5).join(' ') || '暂无'), C.width / 2, 92, 10, '#aeb8d2', 'center', 'middle');
+    if (bondLabels.length > 5) text(bondLabels.slice(5).join(' '), C.width / 2, 106, 10, '#aeb8d2', 'center', 'middle');
   }
-  function menu() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.9)'; c.fillRect(0, 0, C.width, C.height);
-    text('像素割草', C.width / 2, 155, 40, '#5ad1ff', 'center', 'middle', 'bold'); text('关卡制 · 每关十波 · 六系法术自由组合', C.width / 2, 220, 15, '#8b95b3', 'center', 'middle');
-    text('守住阵地，保留更多生命赢取星星', C.width / 2, 248, 14, '#8b95b3', 'center', 'middle');
-    G.ui.start = { x: 150, y: 386, w: 180, h: 54 }; button(G.ui.start, '选 择 关 卡', '#33b3e6');
-    G.ui.shop = { x: 150, y: 454, w: 180, h: 46 }; button(G.ui.shop, '局 外 强 化', '#26324f', '#cdd6ee');
+  function menu() {
+    var c = ctx(), G = GP.state, candidates = G.progress.candidates;
+    c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height);
+    text('像素割草', 26, 45, 28, '#5ad1ff', 'left', 'middle', 'bold');
+    text('金币 ' + G.progress.coins, 452, 45, 15, '#ffd166', 'right', 'middle');
+    text('局外候选 ' + candidates.length + '/7 · 点选或取消', 26, 85, 17, '#e8ecf7', 'left', 'middle', 'bold');
+    text('开局固定白银子弹；候选技能需在局内四选一获得', 26, 110, 12, '#aeb8d2', 'left', 'middle');
+    G.ui.candidates = C.skills.filter(function (v) { return v.id !== C.loadout.initial && v.mode !== 'fullscreen'; }).map(function (v, i) {
+      var rect = { x: 26 + (i % 2) * 219, y: 134 + Math.floor(i / 2) * 49, w: 209, h: 43, id: v.id };
+      var selected = candidates.indexOf(v.id) >= 0;
+      rounded(rect.x, rect.y, rect.w, rect.h, 7); c.fillStyle = selected ? '#182d40' : '#10182b'; c.fill(); c.strokeStyle = selected ? v.color : '#29334a'; c.stroke();
+      text((selected ? '✓ ' : '+ ') + v.name, rect.x + 12, rect.y + 15, 14, selected ? v.color : '#cdd6ee', 'left', 'middle', 'bold');
+      text(v.tags.map(function (t) { return C.factions[t].name; }).join(' / '), rect.x + 12, rect.y + 32, 9, '#aeb8d2', 'left', 'middle');
+      return rect;
+    });
+    text('局内最多 6 技能（含普攻）；全屏技能满足条件后出现', 26, 505, 12, '#aeb8d2', 'left', 'middle');
+    G.ui.start = { x: 26, y: 533, w: 270, h: 46 }; button(G.ui.start, '冒 险 · 选 择 关 卡', '#33b3e6');
+    G.ui.shop = { x: 310, y: 533, w: 144, h: 46 }; button(G.ui.shop, '局 外 强 化', '#26324f', '#cdd6ee');
+    if (G.toast.time > 0) text(G.toast.text, C.width / 2, 607, 12, '#ffd166', 'center', 'middle');
   }
   function drawStars(x, y, stars, flawless, size) { var c = ctx(), gap = size + 12, start = x - gap;
     for (var i = 0; i < 3; i++) { if (flawless) { c.strokeStyle = '#fff3a3'; c.lineWidth = 3; rounded(start + i * gap - size / 2 - 5, y - size / 2 - 5, size + 10, size + 10, 8); c.stroke(); }
@@ -118,42 +127,27 @@
     var starTotal = 0; (G.progress.stars || []).forEach(function (n) { starTotal += n || 0; });
     text('星辉：第 2 关起每颗星 +15% 伤害' + (starTotal ? '（当前 ★' + starTotal + ' → +' + (starTotal * 15) + '%）' : ''),
       C.width / 2, 592, 11, '#8b95b3', 'center', 'middle');
-    G.ui.shop = { x: 165, y: 514, w: 150, h: 38 }; button(G.ui.shop, '局外强化', '#26324f', '#cdd6ee');
+    G.ui.menu = { x: 55, y: 514, w: 170, h: 38 }; button(G.ui.menu, '返回配置候选', '#26324f', '#cdd6ee');
+    G.ui.shop = { x: 255, y: 514, w: 170, h: 38 }; button(G.ui.shop, '局外强化', '#26324f', '#cdd6ee');
   }
-  var CAT_COLOR = { 强度: '#7cff6b', 数量: '#8fe9ff', 机制: '#ffd43b', 解锁: '#ff922b' };
-  function weaponIcon(id) { var w = C.weapons.filter(function (item) { return item.id === id; })[0]; return w ? w.icon : '✦'; }
-  function levelUp() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.84)'; c.fillRect(0, 0, C.width, C.height);
-    var hasUnlock = false, hasUpgrade = false;
-    G.choices.forEach(function (ch) { if (ch.card.unlock) hasUnlock = true; else hasUpgrade = true; });
-    var title = hasUnlock && hasUpgrade ? '新 技 能 / 强 化' : (hasUnlock ? '获 得 新 技 能' : '技 能 强 化');
-    var subtitle = hasUnlock && hasUpgrade ? '武器格 ' + GP.ownedWeapons() + '/' + C.weaponSlots + ' · 新技能与强化随机出现'
-      : (hasUnlock ? '武器格 ' + GP.ownedWeapons() + '/' + C.weaponSlots + ' · 先选一个新技能'
-        : '数量与机制卡会牺牲伤害，看清代价再选');
-    text(title, C.width / 2, 96, 22, '#ffd166', 'center', 'middle', 'bold');
-    text(subtitle, C.width / 2, 122, 12, '#8b95b3', 'center', 'middle');
+  function levelUp() {
+    var c = ctx(), G = GP.state;
+    c.fillStyle = 'rgba(6,9,17,.94)'; c.fillRect(0, 0, C.width, C.height);
+    text('选择技能或强化', C.width / 2, 65, 24, '#ffd166', 'center', 'middle', 'bold');
+    text('装备 ' + GP.ownedSkills() + '/6 · 四选一 · 至少一个强化选项', C.width / 2, 96, 12, '#aeb8d2', 'center', 'middle');
     G.ui.cards = G.choices.map(function (choice, i) {
-      var rect = { x: 60, y: 145 + i * 104, w: 360, h: 92, choice: choice }, card = choice.card, next = choice.level + 1;
-      rounded(rect.x, rect.y, rect.w, rect.h, 12); c.fillStyle = '#16203a'; c.fill();
-      c.strokeStyle = card.color; c.lineWidth = 1.5; c.stroke();
-      text(weaponIcon(card.weapon), rect.x + 30, rect.y + 34, 24, card.color, 'center', 'middle', 'bold');
-      var tag = card.cat === '解锁' ? '新技能' : card.cat, tagW = tag.length * 12 + 10;
-      rounded(rect.x + rect.w - tagW - 12, rect.y + 12, tagW, 20, 6); c.fillStyle = CAT_COLOR[card.cat] || '#33456f'; c.fill();
-      text(tag, rect.x + rect.w - tagW / 2 - 12, rect.y + 22, 12, '#0b1224', 'center', 'middle', 'bold');
-      text(card.name + (card.max > 1 ? '  Lv.' + next : ''), rect.x + 58, rect.y + 26, 16, '#fff', 'left', 'middle', 'bold');
-      text(card.desc(next), rect.x + 58, rect.y + 50, 12, '#aeb8d2', 'left', 'middle');
-      if (card.cost) text('代价 · ' + card.cost, rect.x + 58, rect.y + 72, 12, '#ff8787', 'left', 'middle', 'bold');
-      else if (card.cat === '强度') text('无副作用', rect.x + 58, rect.y + 72, 12, '#7cff6b', 'left', 'middle');
-      else text('解锁新武器', rect.x + 58, rect.y + 72, 12, '#ffb27d', 'left', 'middle');
-      return rect; });
-    if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 470, 13, '#8fe9ff', 'center', 'middle');
-    var canRefresh = G.refreshes > 0;
-    G.ui.refresh = { x: C.width / 2 - 80, y: 496, w: 160, h: 38 };
-    rounded(G.ui.refresh.x, G.ui.refresh.y, G.ui.refresh.w, G.ui.refresh.h, 10);
-    c.fillStyle = canRefresh ? '#1b4b5f' : '#141c30'; c.fill();
-    c.strokeStyle = canRefresh ? '#63e6be' : '#2c3a60'; c.lineWidth = 1.5; c.stroke();
-    text(canRefresh ? '刷 新  ×' + G.refreshes : '刷 新  ×0', C.width / 2, G.ui.refresh.y + G.ui.refresh.h / 2 + 1, 15,
-      canRefresh ? '#63e6be' : '#3d4a70', 'center', 'middle', 'bold');
-    text('通过第 3 / 6 / 9 波各获得 1 次刷新机会', C.width / 2, 552, 11, '#5b6787', 'center', 'middle');
+      var card = choice.card, next = choice.level + 1, rect = { x: 26, y: 120 + i * 91, w: 428, h: 81, choice: choice };
+      rounded(rect.x, rect.y, rect.w, rect.h, 10); c.fillStyle = '#16203a'; c.fill(); c.strokeStyle = card.color; c.stroke();
+      text(card.name + (card.unlock ? '' : ' Lv.' + next), rect.x + 14, rect.y + 19, 16, card.color, 'left', 'middle', 'bold');
+      text(card.unlock ? '新技能' : '强化', rect.x + rect.w - 14, rect.y + 19, 11, '#aeb8d2', 'right', 'middle');
+      text(R.describe(card, next), rect.x + 14, rect.y + 43, 11, '#e8ecf7', 'left', 'middle');
+      var warning = card.unlock && GP.ownedSkills() === 5 ? '占用最后一格，之后只出现强化' : card.cost || (card.unlock ? '独立获得技能，不附带任何强化' : '无伤害代价');
+      text(warning, rect.x + 14, rect.y + 64, 11, card.cost ? '#ffb27d' : '#7cff6b', 'left', 'middle');
+      return rect;
+    });
+    if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 503, 12, '#8fe9ff', 'center', 'middle');
+    G.ui.refresh = { x: 160, y: 526, w: 160, h: 40 }; button(G.ui.refresh, '刷新 ×' + G.refreshes, G.refreshes ? '#1b4b5f' : '#141c30', G.refreshes ? '#63e6be' : '#5b6787');
+    text('通过第 3 / 6 / 9 波各获得一次刷新', C.width / 2, 597, 11, '#aeb8d2', 'center', 'middle');
   }
   function metaScreen() { var c = ctx(), G = GP.state; c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height);
     text('局 外 强 化', C.width / 2, 52, 26, '#e8ecf7', 'center', 'middle', 'bold');
@@ -199,9 +193,10 @@
   }
   function formatTime(ms) { var seconds = Math.floor(ms / 1000); return ('0' + Math.floor(seconds / 60)).slice(-2) + ':' + ('0' + seconds % 60).slice(-2); }
   function render(dt) { var c = ctx(), G = GP.state; P.beginFrame(); background(dt);
+    if (G.state !== 'playing') G.toast.time = Math.max(0, G.toast.time - dt);
     if (G.state === 'menu') menu(); else if (G.state === 'levelselect') levelSelect(); else if (G.state === 'meta') metaScreen(); else {
       c.save(); if (G.shake > 0) c.translate((Math.random() - .5) * G.shake, (Math.random() - .5) * G.shake); battlefield(); c.restore(); hud(); skills();
-      if (G.toast.time > 0 && G.state === 'playing') text(G.toast.text, C.width / 2, Math.max(112, P.safeTop() + 96), 18, G.toast.color, 'center', 'middle', 'bold');
+      if (G.toast.time > 0 && G.state === 'playing') text(G.toast.text, C.width / 2, Math.max(132, P.safeTop() + 116), 18, G.toast.color, 'center', 'middle', 'bold');
       if (G.state === 'levelup') levelUp(); else if (G.state === 'over') over(); else if (G.state === 'cleared') cleared(); else if (G.paused) pause();
     }
   }

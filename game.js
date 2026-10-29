@@ -2,7 +2,7 @@
 (function () {
   var isWx = typeof wx !== 'undefined' && typeof wx.createCanvas === 'function';
   if (isWx) {
-    require('./src/config.js'); require('./src/platform.js'); require('./src/audio.js');
+    require('./src/config.js'); require('./src/rules.js'); require('./src/combat.js'); require('./src/platform.js'); require('./src/audio.js');
     require('./src/gameplay.js'); require('./src/renderer.js'); require('./src/input.js');
   }
   var root = typeof GameGlobal !== 'undefined' ? GameGlobal : window;
