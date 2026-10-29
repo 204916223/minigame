@@ -7,9 +7,9 @@
 <main><aside><h1>强化重置 · 验证预览</h1><p>使用正式强化、输入及存档规则。测试数据独立，不读取或修改实际存档。</p>
 <button id="mixed">攻击3级 · 生命2级 · 护盾1级</button><button id="maxed">五项满级</button><button id="empty">没有强化</button><output id="status" aria-live="polite"></output>
 <p>已解锁前三关与倍速，拥有无尽纪录。重置后可检查这些进度是否保留。</p></aside><canvas id="game" aria-label="强化重置预览画布"></canvas></main>
-<script src="../src/config.js?v=31"></script><script src="../src/rules.js?v=31"></script><script src="../src/combat.js?v=31"></script><script src="../src/platform.js?v=31"></script><script src="../src/audio.js?v=31"></script>
+<script src="../src/config.js?v=32"></script><script src="../src/rules.js?v=32"></script><script src="../src/combat.js?v=32"></script><script src="../src/platform.js?v=32"></script><script src="../src/audio.js?v=32"></script>
 <script>PixelMow.Platform.loadProgress=function(){return {};};PixelMow.Platform.saveProgress=function(){};</script>
-<script src="../src/gameplay.js?v=31"></script><script src="../src/renderer.js?v=31"></script><script src="../src/input.js?v=31"></script>
+<script src="../src/gameplay.js?v=32"></script><script src="../src/renderer.js?v=32"></script><script src="../src/input.js?v=32"></script>
 <script>
 var PM=PixelMow,GP=PM.Gameplay,G=GP.state,last=performance.now();PM.Platform.setupCanvas();PM.Input.bind();
 function setup(meta){G.progress=PM.Rules.progress({coins:1250.5,meta:meta,stars:[3,2,1],endless:{bestWave:12,bestKills:12850},doubleSpeedUnlocked:true});GP.openMenu();GP.openMeta();}

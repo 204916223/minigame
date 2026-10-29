@@ -63,7 +63,7 @@
        否则武器会在屏幕外就把怪杀掉，玩家看不到敌人出场 */
     combat: { enterY: 8, radius: 55, duration: 3, projectileSpeed: 1600,
       knock: 30, freeze: 1, freezeChance: .1, chainRange: 110, zoneTick: 1, zoneDamageRatio: .25, persistentTick: 1,
-      generateDelay: .5, generateFill: .5, fullscreenSweepDuration: .8 },
+      generateDelay: .5, generateFill: .5, fullscreenSweepDuration: 3 },
     /* 星辉：从第二关起，每颗已获得的星给全队伤害 +15%（加法叠加），
        用来奖励三星通关并托住后期难度 */
     starBonus: { perStar: 0.15, fromLevel: 1 },

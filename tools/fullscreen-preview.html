@@ -6,15 +6,15 @@
 *{box-sizing:border-box}body{margin:0;background:#070a12;color:#e8ecf7;font:14px system-ui,sans-serif}main{display:flex;justify-content:center;align-items:flex-start;gap:28px;padding:24px}aside{width:300px}h1{font-size:24px}p{color:#aeb8d2;line-height:1.7}canvas{width:450px;height:600px;border:1px solid #33456f;border-radius:12px}select,button{width:100%;margin:4px 0;padding:10px;border:1px solid #33456f;border-radius:8px;color:#e8ecf7;background:#16203a;font:inherit}button{cursor:pointer}button:hover{border-color:#8fe9ff}output{display:block;margin-top:16px;line-height:1.8;color:#8fe9ff}.stages{display:grid;grid-template-columns:1fr 1fr;gap:4px}@media(max-width:800px){main{flex-direction:column;align-items:center}aside{width:min(450px,100%)}canvas{width:min(450px,100%);height:auto;aspect-ratio:3/4}}
 </style>
 <main><aside>
-<h1>全屏技能与强化</h1><p>正式战斗与渲染代码的验证预览。靶子分三排：横线向上扫过后才扣血。毒系保持单层中毒。</p>
+<h1>全屏技能与强化</h1><p>正式战斗与渲染代码的验证预览。靶子分三排：横线在 3 秒内向上扫描，扫过后才扣血。毒系保持单层中毒。</p>
 <label for="skill">全屏技能</label><select id="skill"></select>
-<div class="stages"><button data-time="0">施放 · 0.00 秒</button><button data-time="0.2">下排 · 0.20 秒</button><button data-time="0.4">中排 · 0.40 秒</button><button data-time="0.8">结束 · 0.80 秒</button></div>
+<div class="stages"><button data-time="0">施放 · 0.00 秒</button><button data-time="0.75">下排 · 0.75 秒</button><button data-time="1.5">中排 · 1.50 秒</button><button data-time="3">结束 · 3.00 秒</button></div>
 <button id="play">播放完整扫描</button><button id="capped">强化满额 · 侧栏预览</button><button id="cards">强化满额 · 选卡预览</button><button id="attribute">电系属性共享 · 对比</button>
 <output id="status" aria-live="polite"></output><p>独立测试存档，不读取或修改实际游玩进度。</p>
 </aside><canvas id="game" aria-label="全屏技能验证画布"></canvas></main>
-<script src="../src/config.js?v=31"></script><script src="../src/rules.js?v=31"></script><script src="../src/combat.js?v=31"></script><script src="../src/platform.js?v=31"></script><script src="../src/audio.js?v=31"></script>
+<script src="../src/config.js?v=32"></script><script src="../src/rules.js?v=32"></script><script src="../src/combat.js?v=32"></script><script src="../src/platform.js?v=32"></script><script src="../src/audio.js?v=32"></script>
 <script>PixelMow.Platform.loadProgress=function(){return {meta:{haste:40}};};PixelMow.Platform.saveProgress=function(){};</script>
-<script src="../src/gameplay.js?v=31"></script><script src="../src/renderer.js?v=31"></script><script src="../src/input.js?v=31"></script>
+<script src="../src/gameplay.js?v=32"></script><script src="../src/renderer.js?v=32"></script><script src="../src/input.js?v=32"></script>
 <script>
 var PM=PixelMow,GP=PM.Gameplay,G=GP.state,R=PM.Rules,C=PM.Config,select=document.getElementById('skill');
 var elapsed=0,playing=false,last=0,mode='sweep';
@@ -34,6 +34,6 @@ function caps(){reset();mode='caps';G.sweeps=[];equip(['chain','fireball','meteo
 document.getElementById('capped').onclick=function(){caps();draw();};
 document.getElementById('cards').onclick=function(){caps();G.state='levelup';G.choices=['basic:cooldown','chain:cooldown','attribute:elec','basic:damage'].map(function(id){return {card:R.card(id),level:G.cardLevels[id]||0};});draw();};
 document.getElementById('attribute').onclick=function(){reset();mode='attribute';G.sweeps=[];equip(['chain','lightning','thunderstorm']);G.cardLevels={'attribute:elec':3};G.focusedSkill='thunderstorm';GP.recompute();document.getElementById('status').textContent='电系属性伤害 +30%：闪电链接、落雷、雷暴均已提升。可点击底部三个技能对比右侧数值。';draw();};
-function loop(now){if(playing){step(Math.min(.05,(now-last)/1000));if(elapsed>=1.2)playing=false;}draw();last=now;requestAnimationFrame(loop);}
+function loop(now){if(playing){step(Math.min(.05,(now-last)/1000));if(elapsed>=3.4)playing=false;}draw();last=now;requestAnimationFrame(loop);}
 window.addEventListener('resize',function(){PM.Platform.setupCanvas();draw();});stage(0);requestAnimationFrame(loop);
 </script></html>

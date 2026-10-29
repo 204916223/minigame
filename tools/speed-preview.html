@@ -8,9 +8,9 @@
 <button id="paid">未通关 · 2500 金币</button><button id="poor">未通关 · 金币不足</button><button id="cleared">第一关通关 · 免费解锁</button>
 <p><label><input id="running" type="checkbox"> 推进战斗</label></p><output id="status" aria-live="polite"></output>
 <p>点击战斗右上角的倍速按钮。默认只预览界面，可勾选“推进战斗”验证速度。</p></aside><canvas id="game" aria-label="倍速功能预览画布"></canvas></main>
-<script src="../src/config.js?v=31"></script><script src="../src/rules.js?v=31"></script><script src="../src/combat.js?v=31"></script><script src="../src/platform.js?v=31"></script><script src="../src/audio.js?v=31"></script>
+<script src="../src/config.js?v=32"></script><script src="../src/rules.js?v=32"></script><script src="../src/combat.js?v=32"></script><script src="../src/platform.js?v=32"></script><script src="../src/audio.js?v=32"></script>
 <script>PixelMow.Platform.loadProgress=function(){return {};};PixelMow.Platform.saveProgress=function(){};</script>
-<script src="../src/gameplay.js?v=31"></script><script src="../src/renderer.js?v=31"></script><script src="../src/input.js?v=31"></script>
+<script src="../src/gameplay.js?v=32"></script><script src="../src/renderer.js?v=32"></script><script src="../src/input.js?v=32"></script>
 <script>
 var PM=PixelMow,GP=PM.Gameplay,G=GP.state,last=performance.now();PM.Platform.setupCanvas();PM.Input.bind();
 function setup(stars,coins){G.coins=0;G.progress=PM.Rules.progress({stars:stars,coins:coins});GP.resetRun(0);G.toast.time=0;document.getElementById('running').checked=false;}

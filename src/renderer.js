@@ -82,9 +82,10 @@
       if (e.flash > 0) { c.globalAlpha = e.flash * .8; c.fillStyle = '#fff'; c.fillRect(e.x - e.r, e.y - e.r, e.r * 2, e.r * 2); c.globalAlpha = 1; }
       if (e.hp < e.maxhp) { var w = e.r * 2; c.fillStyle = '#0b1224'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w, 3); c.fillStyle = '#ff5d6c'; c.fillRect(e.x - w / 2, e.y - e.r - 7, w * Math.max(0, e.hp / e.maxhp), 3); } });
     G.sweeps.forEach(function (v) {
-      c.fillStyle = v.color;
-      for (var band = 0; band < 5; band++) { c.globalAlpha = .20 * (1 - band / 5); c.fillRect(0, v.y + band * 5, C.width, 5); }
-      c.globalAlpha = 1; c.fillRect(0, v.y - 2, C.width, 4);
+      var trail = c.createLinearGradient(0, v.y, 0, v.y + 100);
+      trail.addColorStop(0, v.color); trail.addColorStop(1, 'transparent');
+      c.fillStyle = trail; c.globalAlpha = .35; c.fillRect(0, v.y, C.width, 100);
+      c.fillStyle = v.color; c.globalAlpha = 1; c.fillRect(0, v.y - 2, C.width, 4);
       c.fillStyle = '#fff'; c.globalAlpha = .8; c.fillRect(0, v.y - .5, C.width, 1);
     }); c.globalAlpha = 1;
     sprite(C.sprites.hero, C.hero.x, C.hero.y, 4, GP.selectedCharacter()); c.strokeStyle = 'rgba(143,233,255,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(C.hero.x, C.hero.y - 14);
