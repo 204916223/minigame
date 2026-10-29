@@ -5,15 +5,15 @@
 *{box-sizing:border-box}body{margin:0;background:#070a12;color:#e8ecf7;font:14px system-ui,sans-serif}main{display:flex;justify-content:center;gap:28px;padding:24px;align-items:flex-start}aside{width:280px}h1{font-size:24px}p,output{line-height:1.8;color:#aeb8d2}button{width:100%;padding:12px;margin:6px 0;border:1px solid #33456f;border-radius:8px;background:#16203a;color:#e8ecf7;font:inherit;cursor:pointer}canvas{width:450px;height:600px;border:1px solid #33456f;border-radius:12px}output{display:block;margin-top:18px;color:#8fe9ff}@media(max-width:800px){main{flex-direction:column;align-items:center}aside,canvas{width:min(450px,100%)}canvas{height:auto;aspect-ratio:3/4}}
 </style>
 <main><aside><h1>无尽模式 · 验证预览</h1><p>使用正式选关、选卡、战斗与渲染代码。测试存档独立，不读取或写入实际进度。</p>
-<button id="unlocked">已解锁 · 空备战选关</button><button id="locked">未解锁 · 选关预览</button><button id="start">开始无尽实战</button><button id="equipped">20 技能 · 翻页预览</button><output id="status" aria-live="polite"></output>
+<button id="unlocked">已解锁 · 历史记录页</button><button id="locked">未解锁 · 无尽页面</button><button id="start">开始无尽实战</button><button id="equipped">20 技能 · 翻页预览</button><output id="status" aria-live="polite"></output>
 <p>翻页仅切换展示，所有已获得技能同时生效；全屏前置与风系互斥继续保留。</p></aside><canvas id="game" aria-label="无尽模式预览画布"></canvas></main>
-<script src="../src/config.js?v=24"></script><script src="../src/rules.js?v=24"></script><script src="../src/combat.js?v=24"></script><script src="../src/platform.js?v=24"></script><script src="../src/audio.js?v=24"></script>
+<script src="../src/config.js?v=25"></script><script src="../src/rules.js?v=25"></script><script src="../src/combat.js?v=25"></script><script src="../src/platform.js?v=25"></script><script src="../src/audio.js?v=25"></script>
 <script>PixelMow.Platform.loadProgress=function(){return {stars:[1,1,1],candidates:[]};};PixelMow.Platform.saveProgress=function(){};</script>
-<script src="../src/gameplay.js?v=24"></script><script src="../src/renderer.js?v=24"></script><script src="../src/input.js?v=24"></script>
+<script src="../src/gameplay.js?v=25"></script><script src="../src/renderer.js?v=25"></script><script src="../src/input.js?v=25"></script>
 <script>
 var PM=PixelMow,GP=PM.Gameplay,G=GP.state,frozen=false,last=performance.now();
 PM.Platform.setupCanvas();PM.Input.bind();
-function selection(unlocked){frozen=false;GP.openMenu();G.progress=PM.Rules.progress({stars:unlocked?[1,1,1]:[1,1,0],candidates:unlocked?[]:PM.Config.loadout.defaults});GP.openLevelSelect();}
+function selection(unlocked){frozen=false;GP.openMenu();G.progress=PM.Rules.progress({stars:unlocked?[1,1,1]:[1,1,0],candidates:unlocked?[]:PM.Config.loadout.defaults,endless:unlocked?{bestWave:12,bestKills:12850}:undefined});GP.openEndlessSelect();}
 document.getElementById('unlocked').onclick=function(){selection(true);};
 document.getElementById('locked').onclick=function(){selection(false);};
 document.getElementById('start').onclick=function(){selection(true);GP.resetRun(-1);};

@@ -290,6 +290,7 @@
     var completed = G.waveIndex + 1, gained = isEndless() ? completed % 3 === 0 : completed === 3 || completed === 6 || completed === 9;
     G.waveIndex++; G.waveKills = 0; G.waveSpawned = 0; G.bossSpawned = false; G.spawnTimer = 0.2;
     G.waveLead = C.waveLeadSeconds; G.last = P.now();
+    if (updateEndlessRecords()) P.saveProgress(G.progress);
     if (gained) G.refreshes++;
     toast('第 ' + (G.waveIndex + 1) + ' 波来临' + (gained ? ' · 刷新机会 +1' : ''), '#8fe9ff');
   }
@@ -347,12 +348,20 @@
     G.enemies = G.enemies.filter(function (e) { return !e.dead; });
     settleCombatFlow(); updateEffects(dt);
   }
+  function updateEndlessRecords() {
+    if (!isEndless() || !G.player || !Number.isFinite(G.player.kills)) return false;
+    var record = G.progress.endless, wave = Math.max(record.bestWave, G.waveIndex), kills = Math.max(record.bestKills, G.player.kills);
+    var changed = wave !== record.bestWave || kills !== record.bestKills;
+    record.bestWave = wave; record.bestKills = kills; return changed;
+  }
   function bankCoins() {
-    if (!G.coins) return;
-    G.lastCoins = G.coins;
-    G.progress.coins = (G.progress.coins || 0) + G.coins;
-    G.coins = 0;
-    P.saveProgress(G.progress);
+    var changed = updateEndlessRecords();
+    if (G.coins) {
+      G.lastCoins = G.coins;
+      G.progress.coins = (G.progress.coins || 0) + G.coins;
+      G.coins = 0; changed = true;
+    }
+    if (changed) P.saveProgress(G.progress);
   }
   function totalStars() {
     var n = 0, list = G.progress.stars || [];
@@ -382,9 +391,9 @@
     G.metaReturn = G.state === 'meta' ? G.metaReturn : G.state;
     G.state = 'meta';
   }
-  function leaveMeta() { G.state = G.metaReturn === 'levelselect' ? 'levelselect' : 'menu'; G.metaReturn = null; }
+  function leaveMeta() { G.state = ['levelselect', 'endlessselect'].indexOf(G.metaReturn) >= 0 ? G.metaReturn : 'menu'; G.metaReturn = null; }
   function loadoutReady() { return G.progress.candidates.length === C.loadout.candidates; }
-  function canSelectLevel() { return loadoutReady() || isEndlessUnlocked(); }
+  function canSelectLevel() { return loadoutReady(); }
   function openLevelSelect() {
     if (!canSelectLevel()) {
       toast('请先选满 7 个候选技能（当前 ' + G.progress.candidates.length + '/7）', '#ffd166');
@@ -392,6 +401,8 @@
     }
     bankCoins(); G.state = 'levelselect'; return true;
   }
+  function openEndlessSelect() { bankCoins(); G.paused = false; G.state = 'endlessselect'; return true; }
+  function returnToSelection() { return isEndless() ? openEndlessSelect() : openLevelSelect(); }
   function canContinue() { return !isEndless() && G.result && G.result.stars > 0 && G.selectedLevel + 1 < C.levels.length; }
   function ownedCards() {
     return G.cardOrder.map(function (id) {
@@ -410,7 +421,7 @@
     G.skillPage = next; G.focusedSkill = G.equippedOrder[next * C.loadout.slots]; return true;
   }
   PM.Gameplay = {
-    state: G, combat: combat, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
+    state: G, combat: combat, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openEndlessSelect: openEndlessSelect, returnToSelection: returnToSelection, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
     isLevelUnlocked: isLevelUnlocked, isEndless: isEndless, isEndlessUnlocked: isEndlessUnlocked, loadoutReady: loadoutReady, canSelectLevel: canSelectLevel, canContinue: canContinue, calculateStars: calculateStars,
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
     ownedSkills: ownedSkills, selectSkill: selectSkill, changeSkillPage: changeSkillPage,

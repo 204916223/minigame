@@ -8,19 +8,23 @@ function endless(progress={}){
 function click(h,rect){h.advanceClock(300);h.PM.Input.tap(rect.x+rect.w/2,rect.y+rect.h/2);h.PM.Renderer.render(0);}
 function totalXP(h){let total=h.G.player.xp;for(let lvl=1;lvl<h.G.player.lvl;lvl++)total+=h.GP.xpNeed(lvl);return total;}
 
-test('无尽置于第一关之前，前三关都至少一星才解锁，缺备战不阻止无尽但普通关仍需七个',()=>{
+test('无尽为独立页面，前三关通关才可开始；空备战仅能进入无尽，不进入普通选关',()=>{
  for(const stars of [[],[1],[1,1],[0,1,1],[1,0,1],[1,1,0],[1,1,1]]){
   const h=createGame({stars,candidates:[]}),unlocked=stars.length===3&&stars.every(n=>n>0);
-  assert.equal(h.GP.isEndlessUnlocked(),unlocked);assert.equal(h.GP.isLevelUnlocked(-1),unlocked);
-  assert.equal(h.GP.canSelectLevel(),unlocked);assert.equal(h.GP.resetRun(-1),unlocked);
-  if(!unlocked)assert.equal(h.G.state,'menu');
+  assert.equal(h.GP.isEndlessUnlocked(),unlocked);assert.equal(h.GP.canSelectLevel(),false);
+  assert.equal(h.GP.openLevelSelect(),false);h.PM.Renderer.render(0);
+  click(h,h.G.ui.endless);assert.equal(h.G.state,'endlessselect');
+  click(h,h.G.ui.endlessStart);assert.equal(h.G.state,unlocked?'playing':'endlessselect');
+  if(unlocked){assert.equal(h.G.mode,'endless');assert.equal(h.GP.ownedSkills(),1);}
  }
- const h=endless();h.GP.openLevelSelect();h.PM.Renderer.render(0);
- const rows=h.G.ui.levelButtons;assert.equal(rows.length,6);assert.equal(rows[0].index,-1);assert.equal(rows[1].index,0);
+ const h=createGame({stars:[1,1,1]});h.GP.openLevelSelect();h.PM.Renderer.render(0);
+ const rows=h.G.ui.levelButtons;assert.equal(rows.length,5);assert.deepEqual(Array.from(rows,r=>r.index),[0,1,2,3,4]);
  rows.forEach((r,i)=>{assert.ok(r.x>=0&&r.x+r.w<=h.C.width);if(i)assert.ok(r.y>=rows[i-1].y+rows[i-1].h);});
- assert.ok(rows.at(-1).y+rows.at(-1).h<h.G.ui.menu.y);assert.equal(rows[1].unlocked,false);
- click(h,rows[1]);assert.equal(h.G.state,'levelselect');click(h,rows[0]);assert.equal(h.G.mode,'endless');
- assert.equal(h.GP.ownedSkills(),1);assert.equal(h.G.progress.candidates.length,0);
+ assert.ok(rows.at(-1).y+rows.at(-1).h<h.G.ui.endless.y);
+ click(h,h.G.ui.endless);assert.equal(h.G.state,'endlessselect');
+ click(h,h.G.ui.shop);assert.equal(h.G.state,'meta');click(h,h.G.ui.metaBack);assert.equal(h.G.state,'endlessselect');
+ click(h,h.G.ui.menu);assert.equal(h.G.state,'menu');click(h,h.G.ui.start);click(h,h.G.ui.levelButtons[0]);
+ assert.equal(h.G.mode,'campaign');assert.equal(h.G.state,'playing');
 });
 
 test('无尽每波准确生成1000普通、3小首领、2大首领，跨过第十波继续且不写星级',()=>{
@@ -57,7 +61,7 @@ test('无尽金币减半，经验为普通关的一半且保留小数，首领�
  assert.equal(h.G.coins,2);assert.equal(h.G.player.kills,4);assert.equal(totalXP(h),17.625);
  h.GP.bankCoins();h.GP.bankCoins();assert.equal(h.G.progress.coins,2);
  const e=h.target(240,220,{hp:1,xp:1});h.GP.combat.hit(e,h.G.skills.basic.derived);assert.equal(h.G.coins,.5);
- h.GP.openLevelSelect();assert.equal(h.G.progress.coins,2.5);h.GP.resetRun(-1);assert.equal(h.G.progress.coins,2.5);
+ h.GP.openEndlessSelect();assert.equal(h.G.progress.coins,2.5);h.GP.resetRun(-1);assert.equal(h.G.progress.coins,2.5);
  const restored=createGame(JSON.parse(h.storage['pixelMowProgress.v3']));assert.equal(restored.G.progress.coins,2.5);
  h.GP.resetRun(0);h.GP.combat.hit(h.target(240,220,{hp:1,xp:1}),h.G.skills.basic.derived);
  assert.equal(h.G.coins,1);assert.equal(totalXP(h),.75);assert.equal(h.G.mode,'campaign');
@@ -98,8 +102,8 @@ test('无尽技能栏只分页显示，不限制后台攻击；新增技能自�
  h.target(240,220,{hp:1e6,maxhp:1e6});h.GP.update(1/60);
  h.G.equippedOrder.forEach(id=>assert.ok(h.G.skills[id].cd>0,id));
  const p=h.G.skillPage;h.GP.pause(true);assert.equal(h.GP.changeSkillPage(1),false);assert.equal(h.G.skillPage,p);
- h.PM.Renderer.render(0);click(h,h.G.ui.pauseBack);assert.equal(h.G.state,'levelselect');
- click(h,h.G.ui.levelButtons[0]);assert.equal(h.G.mode,'endless');assert.equal(h.GP.ownedSkills(),1);assert.equal(h.G.skillPage,0);
+ h.PM.Renderer.render(0);click(h,h.G.ui.pauseBack);assert.equal(h.G.state,'endlessselect');
+ click(h,h.G.ui.endlessStart);assert.equal(h.G.mode,'endless');assert.equal(h.GP.ownedSkills(),1);assert.equal(h.G.skillPage,0);
  h.target(240,h.GP.dangerY(),{hp:1e9});h.GP.update(1/60);assert.equal(h.G.state,'over');h.PM.Renderer.render(0);
  click(h,h.G.ui.retry);assert.equal(h.G.mode,'endless');assert.equal(h.G.waveIndex,0);assert.equal(h.G.state,'playing');
 });

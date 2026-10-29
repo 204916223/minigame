@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');const {createGame}=require('./harness');
 test('所有状态正常渲染；四张选项不重叠且在画布内',()=>{
  const h=createGame();h.GP.resetRun(0);
- for(const state of ['menu','levelselect','meta','playing','levelup','over','cleared']){
+ for(const state of ['menu','levelselect','endlessselect','meta','playing','levelup','over','cleared']){
   h.G.state=state;h.G.result={stars:2,ratio:.8,flawless:false,coins:0};h.G.choices=h.GP.buildChoices();
   assert.doesNotThrow(()=>h.PM.Renderer.render(1/60),state);
  }
@@ -28,7 +28,7 @@ test('不足七个候选时点击、空格和选关接口均不能进入；补�
   const labels=[];h.PM.Platform.ctx().fillText=value=>labels.push(String(value));h.PM.Renderer.render(0);
   assert.equal(h.GP.canSelectLevel(),count===7);
   if(count<7){
-   assert.ok(labels.includes('选满 7 个技能后选关（'+count+'/7）'));
+   assert.ok(labels.includes('普通关 · 备战 '+count+'/7'));
    assert.equal(h.GP.openLevelSelect(),false);assert.equal(h.G.state,'menu');
    h.advanceClock(300);const r=h.G.ui.start;h.PM.Input.tap(r.x+r.w/2,r.y+r.h/2);assert.equal(h.G.state,'menu');
    space();assert.equal(h.G.state,'menu');

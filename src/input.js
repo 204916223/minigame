@@ -15,10 +15,17 @@
     if (G.state === 'menu') {
       var candidates = G.ui.candidates || [];
       for (var j = 0; j < candidates.length; j++) if (inside(x, y, candidates[j])) { GP.toggleCandidate(candidates[j].id); return; }
-      if (inside(x, y, G.ui.shop)) GP.openMeta(); else if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
+      if (inside(x, y, G.ui.shop)) GP.openMeta(); else if (inside(x, y, G.ui.endless)) GP.openEndlessSelect(); else if (inside(x, y, G.ui.start)) GP.openLevelSelect(); return; }
+    if (G.state === 'endlessselect') {
+      if (inside(x, y, G.ui.menu)) GP.openMenu();
+      else if (inside(x, y, G.ui.shop)) GP.openMeta();
+      else if (inside(x, y, G.ui.endlessStart)) GP.resetRun(-1);
+      return;
+    }
     if (G.state === 'levelselect') {
       if (inside(x, y, G.ui.menu)) { GP.openMenu(); return; }
       if (inside(x, y, G.ui.shop)) { GP.openMeta(); return; }
+      if (inside(x, y, G.ui.endless)) { GP.openEndlessSelect(); return; }
       for (var l = 0; l < G.ui.levelButtons.length; l++) { var item = G.ui.levelButtons[l];
         if (inside(x, y, item) && item.unlocked) { GP.resetRun(item.index); return; } }
       return;
@@ -28,7 +35,7 @@
       for (var i = 0; i < G.ui.cards.length; i++) if (inside(x, y, G.ui.cards[i])) { GP.applyChoice(G.ui.cards[i].choice); return; }
       return;
     }
-    if (G.state === 'over') { if (inside(x, y, G.ui.retry)) GP.resetRun(G.selectedLevel); else if (inside(x, y, G.ui.back)) GP.openLevelSelect(); return; }
+    if (G.state === 'over') { if (inside(x, y, G.ui.retry)) GP.resetRun(G.selectedLevel); else if (inside(x, y, G.ui.back)) GP.returnToSelection(); return; }
     if (G.state === 'cleared') {
       if (inside(x, y, G.ui.retry)) GP.resetRun(G.selectedLevel);
       else if (inside(x, y, G.ui.next) && GP.canContinue()) GP.resetRun(G.selectedLevel + 1);
@@ -37,7 +44,7 @@
     if (G.state === 'playing') {
       if (G.paused) {
         if (inside(x, y, G.ui.resume)) GP.pause(false);
-        else if (inside(x, y, G.ui.pauseBack)) { GP.pause(false); GP.openLevelSelect(); }
+        else if (inside(x, y, G.ui.pauseBack)) { GP.pause(false); GP.returnToSelection(); }
         return;
       }
       if (inside(x, y, G.ui.pause)) { GP.pause(true); return; }

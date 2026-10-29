@@ -88,7 +88,11 @@
   }
   function progress(raw) {
     var p = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-    var out = { version: 3, stars: [], flawless: [], coins: 0, meta: {}, candidates: [] };
+    var out = { version: 3, stars: [], flawless: [], coins: 0, meta: {}, candidates: [], endless: { bestWave: 0, bestKills: 0 } };
+    ['bestWave', 'bestKills'].forEach(function (key) {
+      var n = p.endless && p.endless[key];
+      out.endless[key] = Number.isFinite(n) ? Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(n))) : 0;
+    });
     C.levels.forEach(function (_, i) {
       var n = Array.isArray(p.stars) ? Number(p.stars[i]) : 0;
       out.stars[i] = isFinite(n) ? Math.max(0, Math.min(3, Math.floor(n))) : 0;
