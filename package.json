@@ -8,6 +8,6 @@
     "verify": "npm run check && npm test",
     "build": "node scripts/build-web.js",
     "release": "npm run verify && npm run build",
-    "serve": "python3 -m http.server 8080"
+    "serve": "node scripts/serve.js"
   }
 }

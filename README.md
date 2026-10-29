@@ -64,10 +64,12 @@ GitHub Pages 使用 `.github/workflows/pages.yml`：推送到 `main` 后自动�
 
 ```bash
 npm run verify
-npm run serve
+npm run serve          # node scripts/serve.js，默认 127.0.0.1:8080
+npm run serve -- --port 8081          # 端口被占用时换一个
+npm run serve -- --host 0.0.0.0       # 手机同局域网调试（暴露到局域网，注意安全）
 ```
 
-浏览器访问 `http://127.0.0.1:8080/`。微信开发者工具可导入当前目录，发布前需替换 `project.config.json` 中的 `touristappid`。
+浏览器访问 `http://127.0.0.1:8080/`。静态服务器零依赖：Windows 上 `python3` 常指向应用商店别名存根（退出码 9009 且无输出），因此不再依赖 Python。微信开发者工具可导入当前目录，发布前需替换 `project.config.json` 中的 `touristappid`。
 
 生成特效可在 `http://127.0.0.1:8080/tools/combat-preview.html` 分阶段检查或播放，使用正式战斗与渲染代码；`tools/map-preview.html` 用于检查镜头夹取、地图边界、环形刷怪和摇杆渲染。两个预览都不写入游戏进度。
 
