@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>倍速按钮 · 验证预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#070a12;color:#e8ecf7;font:14px system-ui,sans-serif}main{display:flex;justify-content:center;gap:28px;padding:24px;align-items:flex-start}aside{width:280px}h1{font-size:24px}p,output{line-height:1.8;color:#aeb8d2}button{width:100%;padding:12px;margin:6px 0;border:1px solid #33456f;border-radius:8px;background:#16203a;color:#e8ecf7;font:inherit;cursor:pointer}canvas{width:450px;height:600px;border:1px solid #33456f;border-radius:12px}output{display:block;margin-top:18px;color:#8fe9ff}@media(max-width:800px){main{flex-direction:column;align-items:center}aside,canvas{width:min(450px,100%)}canvas{height:auto;aspect-ratio:3/4}}
+</style>
+<main><aside><h1>倍速按钮 · 验证预览</h1><p>使用正式战斗界面和输入逻辑，测试存档独立，不读取或修改实际存档。</p>
+<button id="paid">未通关 · 2500 金币</button><button id="poor">未通关 · 金币不足</button><button id="cleared">第一关通关 · 免费解锁</button>
+<p><label><input id="running" type="checkbox"> 推进战斗</label></p><output id="status" aria-live="polite"></output>
+<p>点击战斗右上角的倍速按钮。默认只预览界面，可勾选“推进战斗”验证速度。</p></aside><canvas id="game" aria-label="倍速功能预览画布"></canvas></main>
+<script src="../src/config.js?v=28"></script><script src="../src/rules.js?v=28"></script><script src="../src/combat.js?v=28"></script><script src="../src/platform.js?v=28"></script><script src="../src/audio.js?v=28"></script>
+<script>PixelMow.Platform.loadProgress=function(){return {};};PixelMow.Platform.saveProgress=function(){};</script>
+<script src="../src/gameplay.js?v=28"></script><script src="../src/renderer.js?v=28"></script><script src="../src/input.js?v=28"></script>
+<script>
+var PM=PixelMow,GP=PM.Gameplay,G=GP.state,last=performance.now();PM.Platform.setupCanvas();PM.Input.bind();
+function setup(stars,coins){G.coins=0;G.progress=PM.Rules.progress({stars:stars,coins:coins});GP.resetRun(0);G.toast.time=0;document.getElementById('running').checked=false;}
+document.getElementById('paid').onclick=function(){setup([],2500);};document.getElementById('poor').onclick=function(){setup([],1000);};document.getElementById('cleared').onclick=function(){setup([1],2500);};
+function loop(now){var dt=Math.min(.05,(now-last)/1000);last=now;if(document.getElementById('running').checked)GP.update(dt);PM.Renderer.render(dt);
+document.getElementById('status').textContent='可用金币 '+(G.progress.coins+G.coins)+' · '+(GP.isDoubleSpeedUnlocked()?'已解锁':'未解锁')+' · 当前 '+G.battleSpeed+'×';requestAnimationFrame(loop);}
+setup([],2500);requestAnimationFrame(loop);window.addEventListener('resize',PM.Platform.setupCanvas);
+</script></html>

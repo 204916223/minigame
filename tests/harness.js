@@ -11,7 +11,7 @@ function createGame(progress, seed = 1, wechat = false, initialStorage = {}) {
   if (progress !== undefined) storage['pixelMowProgress.v3'] = JSON.stringify(progress);
   const events = {};
   const sandbox = { window: { devicePixelRatio: 1, addEventListener: (name, callback) => { events[name] = callback; } }, document: { getElementById: () => canvas },
-    Math: math, setTimeout: fn => fn(), performance: { now: () => clock }, localStorage: { getItem: k => storage[k] || null, setItem: (k, v) => { storage[k] = v; }, removeItem: k => { delete storage[k]; } } };
+    Math: math, Date: class extends Date { static now() { return clock; } }, setTimeout: fn => fn(), performance: { now: () => clock }, localStorage: { getItem: k => storage[k] || null, setItem: (k, v) => { storage[k] = v; }, removeItem: k => { delete storage[k]; } } };
   if (wechat) {
     sandbox.GameGlobal = sandbox.window;
     sandbox.wx = { createCanvas: () => canvas, getWindowInfo: () => ({ windowWidth: 480, windowHeight: 640, safeArea: { top: 20, bottom: 620 } }),

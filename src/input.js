@@ -6,6 +6,11 @@
   function tap(x, y) {
     var tapAt = P.now(); if (tapAt - lastTapAt < 250) return; lastTapAt = tapAt;
     var G = GP.state; A.unlock();
+    if (G.speedUnlockOpen && G.state === 'playing') {
+      if (inside(x, y, G.ui.speedBuy)) GP.buyDoubleSpeed();
+      else if (inside(x, y, G.ui.speedCancel)) GP.closeSpeedUnlock();
+      return;
+    }
     if (G.state === 'levelselect' || G.state === 'endlessselect') {
       if (G.pageTurn && G.pageTurn.time > 0) return;
       if (inside(x, y, G.ui.selectPrev)) { GP.changeSelectionPage(-1); return; }
@@ -52,6 +57,7 @@
         return;
       }
       if (inside(x, y, G.ui.pause)) { GP.pause(true); return; }
+      if (inside(x, y, G.ui.speed)) { GP.toggleBattleSpeed(); return; }
       if (inside(x, y, G.ui.skillPrev)) { GP.changeSkillPage(-1); return; }
       if (inside(x, y, G.ui.skillNext)) { GP.changeSkillPage(1); return; }
       var slots = G.ui.skillSlots || [];

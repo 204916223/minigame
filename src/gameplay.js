@@ -16,6 +16,7 @@
   function makeState() {
     return {
       state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0, pageTurn: null,
+      battleSpeed: 1, speedUnlockOpen: false,
       player: {}, skills: {}, cardLevels: {}, cardOrder: [],
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
@@ -63,6 +64,7 @@
     if (levelIndex === -1 && !isEndlessUnlocked()) { toast('前三关至少一星通关后解锁无尽模式'); return false; }
     bankCoins();
     G.state = 'playing'; G.mode = levelIndex === -1 ? 'endless' : 'campaign'; G.paused = false; G.last = P.now(); G.time = 0; G.selectedLevel = levelIndex; G.skillPage = 0;
+    G.battleSpeed = 1; G.speedUnlockOpen = false;
     var totalStars = 0, starList = G.progress.stars || [];
     for (var si = 0; si < starList.length; si++) totalStars += starList[si] || 0;
     var starMul = isEndless() || levelIndex >= (C.starBonus.fromLevel || 1) ? 1 + (C.starBonus.perStar || 0) * totalStars : 1;
@@ -90,6 +92,27 @@
   }
   function isEndlessUnlocked() { return G.progress.stars.slice(0, C.endless.unlockClears).length === C.endless.unlockClears &&
     G.progress.stars.slice(0, C.endless.unlockClears).every(function (n) { return n > 0; }); }
+  function isDoubleSpeedUnlocked() { return G.progress.doubleSpeedUnlocked || G.progress.stars[0] > 0; }
+  function toggleBattleSpeed() {
+    if (G.state !== 'playing' || G.paused) return false;
+    if (!isDoubleSpeedUnlocked()) { G.speedUnlockOpen = true; G.paused = true; return true; }
+    G.battleSpeed = G.battleSpeed === 2 ? 1 : 2; G.last = P.now(); return true;
+  }
+  function closeSpeedUnlock() {
+    if (!G.speedUnlockOpen) return false;
+    G.speedUnlockOpen = false; G.paused = false; G.last = P.now(); return true;
+  }
+  function buyDoubleSpeed() {
+    if (G.state !== 'playing' || !G.speedUnlockOpen) return false;
+    if (!isDoubleSpeedUnlocked()) {
+      if (G.progress.coins + G.coins < C.doubleSpeedCost) return false;
+      // 优先使用局外金币，差额使用本局已获得金币；不提前结算整局。
+      var banked = Math.min(G.progress.coins, C.doubleSpeedCost);
+      G.progress.coins -= banked; G.coins -= C.doubleSpeedCost - banked;
+      G.progress.doubleSpeedUnlocked = true; P.saveProgress(G.progress);
+    }
+    closeSpeedUnlock(); G.battleSpeed = 2; A.pick(); return true;
+  }
   function isLevelUnlocked(index) { return index === -1 ? isEndlessUnlocked() : index === 0 || (G.progress.stars[index - 1] || 0) > 0; }
   function chooseWeighted(pool) {
     var keys = Object.keys(pool), total = 0, i;
@@ -335,7 +358,7 @@
     G.floaters.forEach(function (f) { f.age += dt; f.y -= 30 * dt; }); G.floaters = G.floaters.filter(function (f) { return f.age < f.life; });
     G.shake = Math.max(0, G.shake - dt * 40); G.damageFlash = Math.max(0, G.damageFlash - dt * 2); G.toast.time -= dt;
   }
-  function update(dt) {
+  function updateStep(dt) {
     if (G.state !== 'playing' || G.paused) return;
     G.time += dt * 1000; G.spawnTimer -= dt;
     if (G.spawnTimer <= 0 && G.waveSpawned < waveConfig().kills) {
@@ -358,6 +381,14 @@
     if (G.state === 'playing') combat.update(dt);
     G.enemies = G.enemies.filter(function (e) { return !e.dead; });
     settleCombatFlow(); updateEffects(dt);
+  }
+  function update(dt) {
+    // 2× 按原步长多推进一次，避免放大单步导致高速弹道、生成技或状态结算跳帧。
+    var steps = G.battleSpeed === 2 && isDoubleSpeedUnlocked() ? 2 : 1;
+    for (var i = 0; i < steps; i++) {
+      if (G.state !== 'playing' || G.paused) break;
+      updateStep(dt);
+    }
   }
   function updateEndlessRecords() {
     if (!isEndless() || !G.player || !Number.isFinite(G.player.kills)) return false;
@@ -444,8 +475,9 @@
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
     ownedSkills: ownedSkills, selectSkill: selectSkill, changeSkillPage: changeSkillPage, changeSelectionPage: changeSelectionPage,
     recompute: recomputeDerived, refreshChoices: refreshChoices, fullscreenChance: fullscreenChance,
+    isDoubleSpeedUnlocked: isDoubleSpeedUnlocked, toggleBattleSpeed: toggleBattleSpeed, buyDoubleSpeed: buyDoubleSpeed, closeSpeedUnlock: closeSpeedUnlock,
     openMeta: openMeta, leaveMeta: leaveMeta, buyMeta: buyMeta, metaCost: metaCost, totalStars: totalStars, bankCoins: bankCoins,
-    pause: function (value) { G.paused = value; G.last = P.now(); },
+    pause: function (value) { if (G.speedUnlockOpen) return; G.paused = value; G.last = P.now(); },
     toast: toast, dangerY: dangerY, waveConfig: waveConfig
   };
 })(typeof GameGlobal !== 'undefined' ? GameGlobal : window);

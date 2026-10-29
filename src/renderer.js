@@ -96,7 +96,11 @@
     var waveName = GP.isEndless() ? '无尽 · 第 ' + (G.waveIndex + 1) + ' 波' : '第 ' + (G.waveIndex + 1) + '/' + C.waveCount + ' 波';
     var waveText = waveName + (GP.isBossActive() ? '  首领战' : '  击杀 ' + G.waveKills + '/' + w.kills);
     text(waveText, 58, top + 43, 12, '#cdd6ee', 'left', 'middle', 'bold');
-    text(formatTime(G.time), C.width - 55, top + 43, 12, '#8b95b3', 'right', 'middle');
+    text(formatTime(G.time), C.width - 55, top + 65, 11, '#8b95b3', 'right', 'middle');
+    var speedUnlocked = GP.isDoubleSpeedUnlocked(), fast = G.battleSpeed === 2;
+    G.ui.speed = { x: C.width - 112, y: top + 30, w: 60, h: 26 };
+    rounded(G.ui.speed.x, G.ui.speed.y, 60, 26, 6); c.fillStyle = fast ? '#33b3e6' : '#111a30'; c.fill(); c.strokeStyle = '#33456f'; c.stroke();
+    text(speedUnlocked ? G.battleSpeed + '×' : '2× 解锁', G.ui.speed.x + 30, G.ui.speed.y + 14, speedUnlocked ? 14 : 11, fast ? '#05121c' : speedUnlocked ? '#8fe9ff' : '#ffd166', 'center', 'middle', 'bold');
     G.ui.pause = { x: C.width - 42, y: top + 30, w: 32, h: 26 }; rounded(G.ui.pause.x, G.ui.pause.y, 32, 26, 6); c.fillStyle = 'rgba(17,26,48,.9)'; c.fill(); c.strokeStyle = '#33456f'; c.stroke();
     c.fillStyle = '#cdd6ee'; c.fillRect(G.ui.pause.x + 10, G.ui.pause.y + 7, 3, 12); c.fillRect(G.ui.pause.x + 18, G.ui.pause.y + 7, 3, 12);
   }
@@ -317,6 +321,18 @@
   function pause() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.74)'; c.fillRect(0, 0, C.width, C.height); text('已 暂 停', C.width / 2, 260, 28, '#e8ecf7', 'center', 'middle', 'bold');
     G.ui.resume = { x: 160, y: 315, w: 160, h: 50 }; button(G.ui.resume, '继 续', '#33b3e6');
     G.ui.pauseBack = { x: 160, y: 382, w: 160, h: 46 }; button(G.ui.pauseBack, GP.isEndless() ? '返回无尽模式' : '返回选关', '#26324f', '#cdd6ee'); }
+  function speedUnlock() {
+    var c = ctx(), G = GP.state, coins = G.progress.coins + G.coins, affordable = coins >= C.doubleSpeedCost;
+    c.fillStyle = 'rgba(6,9,17,.88)'; c.fillRect(0, 0, C.width, C.height);
+    text('解锁 2× 倍速', C.width / 2, 208, 28, '#8fe9ff', 'center', 'middle', 'bold');
+    text('第一关至少一星通关后自动解锁', C.width / 2, 258, 16, '#e8ecf7', 'center', 'middle');
+    text('或花 ' + C.doubleSpeedCost + ' 金币提前永久解锁', C.width / 2, 290, 16, '#e8ecf7', 'center', 'middle');
+    text('可用金币 ' + coins + '（含本局）', C.width / 2, 324, 14, '#ffd166', 'center', 'middle');
+    G.ui.speedBuy = { x: 115, y: 360, w: 250, h: 46 };
+    button(G.ui.speedBuy, affordable ? '支付 ' + C.doubleSpeedCost + ' 金币并开启' : '金币不足', affordable ? '#33b3e6' : '#1b2438', affordable ? '#05121c' : '#717c98');
+    G.ui.speedCancel = { x: 160, y: 425, w: 160, h: 42 }; button(G.ui.speedCancel, '暂 不 解 锁', '#26324f', '#cdd6ee');
+    text('当前战斗已暂停', C.width / 2, 493, 12, '#8b95b3', 'center', 'middle');
+  }
   function over() { var c = ctx(), G = GP.state; c.fillStyle = 'rgba(6,9,17,.88)'; c.fillRect(0, 0, C.width, C.height); text('阵 地 失 守', C.width / 2, 190, 34, '#ff5d6c', 'center', 'middle', 'bold');
     text((GP.isEndless() ? '无尽 · ' : '') + '第 ' + (G.waveIndex + 1) + ' 波 · 击杀 ' + G.player.kills, C.width / 2, 255, 16, '#e8ecf7', 'center', 'middle');
     text('本局金币 +' + (G.lastCoins || 0) + ' · 总计 ' + (G.progress.coins || 0), C.width / 2, 284, 13, '#ffd166', 'center', 'middle');
@@ -338,7 +354,7 @@
       c.save(); if (G.shake > 0) c.translate((Math.random() - .5) * G.shake, (Math.random() - .5) * G.shake); battlefield(); c.restore(); hud(); skills();
       var sidebarTop = Math.max(90, P.safeTop() + 84); bondSidebar(sidebarTop); enhancementSidebar(sidebarTop);
       if (G.toast.time > 0 && G.state === 'playing') text(G.toast.text, C.width / 2, Math.max(132, P.safeTop() + 116), 18, G.toast.color, 'center', 'middle', 'bold');
-      if (G.state === 'levelup') levelUp(); else if (G.state === 'over') over(); else if (G.state === 'cleared') cleared(); else if (G.paused) pause();
+      if (G.state === 'levelup') levelUp(); else if (G.state === 'over') over(); else if (G.state === 'cleared') cleared(); else if (G.speedUnlockOpen) speedUnlock(); else if (G.paused) pause();
     }
   }
   PM.Renderer = { render: render };
