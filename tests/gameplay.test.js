@@ -33,13 +33,13 @@ test('四选一去重，初次升级及满槽都保证强化', () => {
   }
 });
 test('不可知域只看装备，满足前置即可出现，获取后禁止装备风系', () => {
-  const h = run(); h.G.candidates = ['poisonbottle','miasma','windblade']; h.equip(['poisonbottle','miasma']);
-  assert.ok(h.R.eligible(h.G, 'unknown')); h.take('get:unknown'); assert.equal(h.GP.ownedSkills(),4);
+  const h = run(); h.G.candidates = ['poisonbottle','miasma','windblade']; h.equip(['poisonbottle','miasma','laser']);
+  assert.ok(h.R.eligible(h.G, 'unknown')); h.take('get:unknown'); assert.equal(h.GP.ownedSkills(),5);
   assert.equal(h.R.eligible(h.G,'windblade'),false);
   h.equip(['poisonbottle','miasma','windblade']); assert.equal(h.R.eligible(h.G,'unknown'),false);
 });
 test('六种全屏均可达，满六槽不再出技能', () => {
-  const h=run(), builds={ thunderstorm:['chain','lightning','waterball','geyser'], firestorm:['fireball','meteor','windblade','tornado'], tidalwave:['windblade','tornado','chain','lightning'], blizzard:['icecone','crystal','windblade','tornado'], flood:['waterball','geyser','windblade','tornado'], unknown:['poisonbottle','miasma'] };
+  const h=run(), builds={ thunderstorm:['chain','lightning','waterball','geyser'], firestorm:['fireball','meteor','windblade','tornado'], tidalwave:['windblade','tornado','chain','lightning'], blizzard:['icecone','crystal','windblade','tornado'], flood:['waterball','geyser','windblade','tornado'], unknown:['poisonbottle','miasma','laser'] };
   Object.entries(builds).forEach(([id,ids])=>{h.equip(ids);assert.equal(h.R.eligible(h.G,id),true,id);});
   h.equip(['chain','lightning','waterball','geyser','laser']); assert.equal(h.R.eligible(h.G,'thunderstorm'),false);
 });

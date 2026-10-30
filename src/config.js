@@ -25,7 +25,7 @@
 
   PM.Config = {
     width: 480,
-    height: 640,
+    height: 480 * 16 / 9,
     /* 波次衔接：不再插 3 秒全屏横幅，本波最后一只怪出场后倒计时 3s 直接接下一波 */
     waveLeadSeconds: 3,
     /* 出怪速度每波至少 +10%（间隔等比缩小）；
@@ -44,12 +44,17 @@
       coinMultiplier: .5, xpMultiplier: .5, interval: 1.5, minInterval: .5,
       pool: { grunt: 1, runner: .5, bat: .3, tank: .1 } },
     enemyHpMultiplier: 2,
+    characterDamageBonus: .15,
     characters: [
-      { id: "azure", name: "苍蓝卫士", color: "#38bdf8", dark: "#0ea5e9" },
-      { id: "violet", name: "紫晶卫士", color: "#b197fc", dark: "#7048e8" },
-      { id: "jade", name: "翡翠卫士", color: "#63e6be", dark: "#2f9e44" }
+      { id: 'physical', el: 'physical', name: '物理卫士', clears: 0 },
+      { id: 'fire', el: 'fire', name: '烈焰卫士', clears: 0 },
+      { id: 'poison', el: 'poison', name: '毒雾卫士', clears: 1 },
+      { id: 'elec', el: 'elec', name: '雷霆卫士', clears: 2 },
+      { id: 'water', el: 'water', name: '潮汐卫士', clears: 3 },
+      { id: 'wind', el: 'wind', name: '疾风卫士', clears: 4 },
+      { id: 'ice', el: 'ice', name: '寒冰卫士', clears: 5 }
     ],
-    hero: { x: 240, y: 552, hp: 400, defense: 100 },
+    hero: { x: 240, y: 480 * 16 / 9 - 120, hp: 400, defense: 100 },
 
     /* 怪物强度曲线：波次成长 + 波内逐只成长 + 关卡系数，第二只一定比第一只硬
      openingRelief 只放宽前 openingReliefWaves 波的刷怪间隔；
@@ -148,19 +153,21 @@
       { id: 'blackhole', name: '黑洞', el: 'physical', mode: 'generate', area: 'area', cd: 24, minCd: 8, ratio: 1.5, tags: ['cooldown','range','multi'] },
       { id: 'chain', name: '闪电链接', el: 'elec', mode: 'bolt', area: 'line', cd: 4, minCd: 2, ratio: .5, damageScale: .5, targets: 3, tags: ['cooldown','range','multi','slow','chain'], chains: 5 },
       { id: 'lightning', name: '落雷', el: 'elec', mode: 'generate', area: 'area', cd: 20, minCd: 8, ratio: 1, tags: ['cooldown','range','multi','slow'] },
-      { id: 'thunderstorm', name: '雷暴', el: 'elec', mode: 'fullscreen', area: 'all', cd: 30, minCd: 15, ratio: 1, tags: ['cooldown','slow'], cond: { elec: 2, water: 2 } },
+      /* 全屏技能（不可知域除外）固定 10 秒施放一次：fixedCd 让冷却不受冷却卡、羁绊与局外攻速影响，
+         全屏技能只提供专属伤害卡，不提供冷却或控制等特殊强化卡（noCards）。 */
+      { id: 'thunderstorm', name: '雷暴', el: 'elec', mode: 'fullscreen', area: 'all', cd: 10, fixedCd: true, noCards: ['cooldown'], ratio: 1, tags: ['cooldown','slow'], cond: { elec: 2, water: 2 } },
       { id: 'fireball', name: '火球术', el: 'fire', mode: 'bolt', area: 'area', cd: 10, minCd: 4, ratio: 1.25, tags: ['cooldown','duration','range','multi'] },
       { id: 'meteor', name: '天火流星', el: 'fire', mode: 'generate', area: 'area', cd: 24, minCd: 8, ratio: 1.5, tags: ['cooldown','duration','range','multi'] },
-      { id: 'firestorm', name: '火焰漩涡', el: 'fire', mode: 'fullscreen', area: 'all', cd: 24, minCd: 12, ratio: .75, tags: ['cooldown'], cond: { fire: 2, wind: 2 } },
+      { id: 'firestorm', name: '火焰漩涡', el: 'fire', mode: 'fullscreen', area: 'all', cd: 10, fixedCd: true, noCards: ['cooldown'], ratio: .75, tags: ['cooldown'], cond: { fire: 2, wind: 2 } },
       { id: 'windblade', name: '风刃', el: 'wind', mode: 'bolt', area: 'single', cd: 6, minCd: 3, ratio: .5, targets: 3, tags: ['cooldown','multi','split','knock','pierce'] },
       { id: 'tornado', name: '龙卷风', el: 'wind', mode: 'generate', area: 'area', cd: 20, minCd: 8, ratio: 1, tags: ['cooldown','range','multi','gather'] },
-      { id: 'tidalwave', name: '排山倒海', el: 'wind', mode: 'fullscreen', area: 'all', cd: 20, minCd: 10, ratio: .5, tags: ['cooldown','knock'], cond: { wind: 2, elec: 2 } },
+      { id: 'tidalwave', name: '排山倒海', el: 'wind', mode: 'fullscreen', area: 'all', cd: 10, fixedCd: true, noCards: ['cooldown'], ratio: .5, tags: ['cooldown','knock'], cond: { wind: 2, elec: 2 } },
       { id: 'icecone', name: '冰锥', el: 'ice', mode: 'bolt', area: 'single', cd: 8, minCd: 4, ratio: 1, tags: ['cooldown','multi','split','freeze'] },
       { id: 'crystal', name: '结晶', el: 'ice', mode: 'generate', area: 'area', cd: 22, minCd: 8, ratio: 1.25, tags: ['cooldown','range','multi','freeze'] },
-      { id: 'blizzard', name: '极寒风暴', el: 'ice', mode: 'fullscreen', area: 'all', cd: 20, minCd: 10, ratio: .5, tags: ['cooldown','freeze'], cond: { ice: 2, wind: 2 } },
+      { id: 'blizzard', name: '极寒风暴', el: 'ice', mode: 'fullscreen', area: 'all', cd: 10, fixedCd: true, noCards: ['cooldown'], ratio: .5, tags: ['cooldown','freeze'], cond: { ice: 2, wind: 2 } },
       { id: 'waterball', name: '水球术', el: 'water', mode: 'bolt', area: 'single', cd: 6, minCd: 3, ratio: .75, targets: 2, tags: ['cooldown','breach','multi','split'] },
       { id: 'geyser', name: '喷涌', el: 'water', mode: 'generate', area: 'area', cd: 20, minCd: 8, ratio: 1, tags: ['cooldown','range','breach','multi'] },
-      { id: 'flood', name: '水漫金山', el: 'water', mode: 'fullscreen', area: 'all', cd: 30, minCd: 15, ratio: 1, tags: ['cooldown','breach'], cond: { water: 2, wind: 2 } },
+      { id: 'flood', name: '水漫金山', el: 'water', mode: 'fullscreen', area: 'all', cd: 10, fixedCd: true, noCards: ['cooldown'], ratio: 1, tags: ['cooldown','breach'], cond: { water: 2, wind: 2 } },
       { id: 'poisonbottle', name: '毒瓶', el: 'poison', mode: 'bolt', area: 'area', cd: 8, minCd: 4, ratio: .75, targets: 2, tags: ['cooldown','duration','range','multi'] },
       { id: 'miasma', name: '瘴雾', el: 'poison', mode: 'generate', area: 'area', cd: 16, minCd: 8, ratio: .5, targets: 3, tags: ['cooldown','duration','range','multi'] },
       { id: 'unknown', name: '不可知域', el: 'poison', mode: 'fullscreen', area: 'all', cd: 0, ratio: .1, tags: ['duration'], cond: { poison: 2 }, excludes: ['wind'], noCards: ['duration'], persistent: true }
@@ -203,7 +210,12 @@
     var el = PM.Config.elements[id], hex = el.color.slice(1);
     el.dark = '#' + [0,2,4].map(function (i) { return ('0' + Math.round(parseInt(hex.slice(i,i+2),16) * .6).toString(16)).slice(-2); }).join('');
   });
+  PM.Config.characters.forEach(function (hero) {
+    var el = PM.Config.elements[hero.el]; hero.color = el.color; hero.dark = el.dark;
+  });
   PM.Config.skills.forEach(function (s) {
+    // 保留派系标签参与羁绊；全屏的专属强化只开放伤害。
+    if (s.mode === 'fullscreen') s.noCards = s.tags.slice();
     var el = PM.Config.elements[s.el]; s.color = el.color; s.icon = el.icon;
     s.minCd = s.minCd === undefined ? 0 : s.minCd;
   });

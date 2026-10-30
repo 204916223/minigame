@@ -10,7 +10,8 @@ test('冷却硬下限经过满卡、满局外和四件羁绊后仍成立，普�
     if (s.persistent) continue;
     h.G.cardLevels[s.id + ':cooldown'] = 10;
     const seconds = h.R.derive(h.G,s.id).cd / 1000;
-    if (s.mode === 'generate') assert.equal(seconds,8,s.id);
+    if (s.fixedCd) assert.equal(seconds,10,s.id);
+    else if (s.mode === 'generate') assert.equal(seconds,8,s.id);
     else if (floors[s.id]) assert.equal(seconds,floors[s.id],s.id);
     assert.ok(s.cd > s.minCd,s.id);
     if (s.id !== 'basic') assert.ok(s.cd > h.R.skill('basic').cd);

@@ -65,7 +65,7 @@ test('2×准确推进两倍游戏时间和位移，暂停、选卡、失败及�
   h.GP.pause(true);h.GP.update(.05);assert.ok(Math.abs(h.G.time-2000)<1e-8);h.GP.pause(false);
   for(const state of ['levelup','over','cleared']){
     const v=run();v.GP.toggleBattleSpeed();v.G.skills.basic.cd=1e9;v.G.spawnTimer=100;
-    if(state==='levelup'){v.target(240,510,{hp:1,xp:4});v.GP.combat.cast(v.R.derive(v.G,'basic'));}
+    if(state==='levelup'){v.target(240,v.C.hero.y-42,{hp:1,xp:4});v.GP.combat.cast(v.R.derive(v.G,'basic'));}
     if(state==='over')v.target(240,v.GP.dangerY(),{hp:10000});
     if(state==='cleared'){v.G.waveIndex=9;v.G.waveSpawned=v.GP.waveConfig().kills;}
     v.GP.update(.05);assert.equal(v.G.state,state);assert.equal(v.G.time,50);

@@ -89,7 +89,7 @@ test('首页角色循环切换并持久化；技能弹窗阻止穿透和空格�
  const h=createGame();h.PM.Input.bind();const render=()=>h.PM.Renderer.render(0);
  const tap=r=>{h.advanceClock(300);h.PM.Input.tap(r.x+r.w/2,r.y+r.h/2);render();};
  render();const first=h.GP.selectedCharacter().id;
- tap(h.G.ui.heroPrev);assert.equal(h.GP.selectedCharacter().id,h.C.characters.at(-1).id);
+ tap(h.G.ui.heroPrev);assert.equal(h.GP.previewCharacter().id,h.C.characters.at(-1).id);assert.equal(h.GP.selectedCharacter().id,first);
  tap(h.G.ui.heroNext);assert.equal(h.GP.selectedCharacter().id,first);
  tap(h.G.ui.heroNext);const chosen=h.GP.selectedCharacter().id;
  assert.equal(createGame(JSON.parse(h.storage['pixelMowProgress.v3'])).GP.selectedCharacter().id,chosen);

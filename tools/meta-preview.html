@@ -2,7 +2,7 @@
 <html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>强化重置 · 验证预览</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#070a12;color:#e8ecf7;font:14px system-ui,sans-serif}main{display:flex;justify-content:center;gap:28px;padding:24px;align-items:flex-start}aside{width:280px}h1{font-size:24px}p,output{line-height:1.8;color:#aeb8d2}button{width:100%;padding:12px;margin:6px 0;border:1px solid #33456f;border-radius:8px;background:#16203a;color:#e8ecf7;font:inherit;cursor:pointer}canvas{width:450px;height:600px;border:1px solid #33456f;border-radius:12px}output{display:block;margin-top:18px;color:#8fe9ff}@media(max-width:800px){main{flex-direction:column;align-items:center}aside,canvas{width:min(450px,100%)}canvas{height:auto;aspect-ratio:3/4}}
+*{box-sizing:border-box}body{margin:0;background:#070a12;color:#e8ecf7;font:14px system-ui,sans-serif}main{display:flex;justify-content:center;gap:28px;padding:24px;align-items:flex-start}aside{width:280px}h1{font-size:24px}p,output{line-height:1.8;color:#aeb8d2}button{width:100%;padding:12px;margin:6px 0;border:1px solid #33456f;border-radius:8px;background:#16203a;color:#e8ecf7;font:inherit;cursor:pointer}canvas{width:450px;height:800px;border:1px solid #33456f;border-radius:12px}output{display:block;margin-top:18px;color:#8fe9ff}@media(max-width:800px){main{flex-direction:column;align-items:center}aside,canvas{width:min(450px,100%)}canvas{height:auto;aspect-ratio:9/16}}
 </style>
 <main><aside><h1>强化重置 · 验证预览</h1><p>使用正式强化、输入及存档规则。测试数据独立，不读取或修改实际存档。</p>
 <button id="mixed">攻击3级 · 生命2级 · 护盾1级</button><button id="maxed">五项满级</button><button id="empty">没有强化</button><output id="status" aria-live="polite"></output>

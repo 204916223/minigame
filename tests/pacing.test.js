@@ -16,7 +16,7 @@ test('同攻击方式下高伤技能更慢且初始目标不更多，满冷却�
   h.G.player.haste = .2;
   for (const s of h.C.skills.filter(s => !s.persistent)) {
     h.G.cardLevels[s.id + ':cooldown'] = 10;
-    assert.equal(h.R.derive(h.G, s.id).cd, s.minCd * 1000, s.id);
+    assert.equal(h.R.derive(h.G, s.id).cd, (s.fixedCd ? s.cd : s.minCd) * 1000, s.id);
   }
   h.G.cardLevels['windblade:multi'] = 6; h.equip(['windblade']);
   assert.equal(h.R.derive(h.G, 'windblade').count, 9);

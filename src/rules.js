@@ -47,6 +47,7 @@
     if (list.some(function (v) { return (v.excludes || []).indexOf(s.el) >= 0; })) return false;
     if ((s.excludes || []).some(function (el) { return list.some(function (v) { return v.el === el; }); })) return false;
     if (s.mode !== 'fullscreen') return state.mode === 'endless' || state.candidates.indexOf(id) >= 0;
+    if (list.length < 4) return false;
     return Object.keys(s.cond).every(function (el) { return list.filter(function (v) { return v.el === el; }).length >= s.cond[el]; });
   }
   function pool(state) {
@@ -57,6 +58,14 @@
     }).map(function (c) { return { card: c, level: state.cardLevels[c.id] || 0 }; });
   }
   function attributeBonus(state, el) { return (state.cardLevels['attribute:' + el] || 0) * C.factions.attribute.step; }
+  function damageElements(s) { return s.mode === 'fullscreen' ? Object.keys(s.cond) : [s.el]; }
+  function characterUnlocked(progress, id) {
+    var hero = C.characters.filter(function (v) { return v.id === id; })[0];
+    return !!hero && (progress.stars || []).filter(function (n) { return n > 0; }).length >= hero.clears;
+  }
+  function skillAttributeBonus(state, id) {
+    return damageElements(skill(id)).reduce(function (sum, el) { return sum + attributeBonus(state, el) + (state.player.characterElement === el ? C.characterDamageBonus : 0); }, 0);
+  }
   function derive(state, id) {
     var s = skill(id), counts = bondsUnlocked(state) ? bonds(state) : {}, tax = 0;
     function level(tag) { return state.cardLevels[id + ':' + tag] || 0; }
@@ -67,10 +76,10 @@
       own += f.totalCap ? baseCount(s, tag) : 0;
       return Math.min(f.cap, own) + bonus(counts, tag);
     }
-    s.tags.forEach(function (tag) { tax += level(tag) * .05; });
-    var damageBonus = level('damage') * C.factions.damage.step + attributeBonus(state, s.el);
+    s.tags.forEach(function (tag) { if ((s.noCards || []).indexOf(tag) < 0) tax += level(tag) * .05; });
+    var damageBonus = level('damage') * C.factions.damage.step + skillAttributeBonus(state, id);
     var attack = C.power.base * s.ratio * Math.max(0, 1 + (state.player.damageBonus || 0) + damageBonus - tax);
-    return { id: id, dmg: attack, cd: s.persistent ? 0 : Math.max(s.minCd, s.cd * (1 - amount('cooldown') - (state.player.haste || 0))) * 1000,
+    return { id: id, dmg: attack, cd: s.persistent ? 0 : (s.fixedCd ? s.cd : Math.max(s.minCd, s.cd * (1 - amount('cooldown') - (state.player.haste || 0)))) * 1000,
       count: has(s, 'multi') ? amount('multi') : 1, child: amount('split'), pierce: amount('pierce'),
       radius: (s.radius || C.combat.radius) * (1 + amount('range')), duration: has(s, 'duration') ? (s.duration || C.combat.duration) + amount('duration') : 0,
       breach: amount('breach'), slow: amount('slow'), freezeChance: has(s, 'freeze') ? Math.min(1, C.combat.freezeChance + amount('freeze')) : 0, freeze: C.combat.freeze,
@@ -96,7 +105,8 @@
     if (card.element) return C.elements[card.element].name + (card.element === 'physical' ? '' : '系') + '所有技能伤害 +' + Math.round(level * C.factions.attribute.step * 100) + '%（含后续获得的技能）';
     var s = skill(card.skill);
     if (card.unlock) return s.persistent ? '常驻单层中毒；此后禁选风系' :
-      '攻击 ' + C.power.base * s.ratio + ' · 冷却 ' + s.cd + 's（最短 ' + s.minCd + 's）· ' + (s.mode === 'fullscreen' ? '全屏' : (s.targets || 1) + ' 目标');
+      '攻击 ' + C.power.base * s.ratio + ' · 冷却 ' + s.cd + 's（' + (s.fixedCd ? '固定' : '最短 ' + s.minCd + 's') + '）· ' +
+      (s.mode === 'fullscreen' ? '全屏' : (s.targets || 1) + ' 目标');
     var tag = card.tag, f = C.factions[tag], value = Math.min(level, card.max) * f.step;
     if (tag === 'split') return '命中后分裂 ' + (level + 1) + ' 个半伤子弹，最多一代';
     if (tag === 'duration') return '本技能持续时间 +' + value.toFixed(1) + ' 秒';
@@ -127,8 +137,9 @@
       var s = skill(id);
       if (s && id !== C.loadout.initial && s.mode !== 'fullscreen' && out.candidates.indexOf(id) < 0 && out.candidates.length < C.loadout.candidates) out.candidates.push(id);
     });
+    if (!characterUnlocked(out, out.character)) out.character = C.characters[0].id;
     return out;
   }
   PM.Rules = { skill: skill, has: has, cards: cards, card: function (id) { return cardMap[id]; }, owned: owned, bonds: bonds, bondsUnlocked: bondsUnlocked,
-    bonus: bonus, cardMax: cardMax, eligible: eligible, pool: pool, derive: derive, attributeBonus: attributeBonus, enhancementMaxed: enhancementMaxed, damage: damage, describe: describe, progress: progress };
+    bonus: bonus, cardMax: cardMax, eligible: eligible, pool: pool, derive: derive, characterUnlocked: characterUnlocked, attributeBonus: attributeBonus, skillAttributeBonus: skillAttributeBonus, enhancementMaxed: enhancementMaxed, damage: damage, describe: describe, progress: progress };
 })(typeof GameGlobal !== 'undefined' ? GameGlobal : window);

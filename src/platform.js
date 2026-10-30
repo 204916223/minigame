@@ -22,6 +22,10 @@
       safeTop = Math.max(0, (area.top * inputY - offY) / scale);
       safeBottom = Math.min(C.height, (area.bottom * inputY - offY) / scale);
     } else {
+      // 浏览器工具栏展开/收起时，使用实际可见高度，CSS 再扣除硬件安全区和边距。
+      if (window.visualViewport && document.documentElement) {
+        document.documentElement.style.setProperty('--viewport-height', window.visualViewport.height + 'px');
+      }
       canvas = document.getElementById('game');
       var rect = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, Math.round(rect.width * dpr));

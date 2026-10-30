@@ -163,10 +163,12 @@
     var s = R.skill(id), d = G.skills[id].derived, rows = [], x = C.width - 96;
     function add(label, value, tag, positive) { rows.push({ label: label, value: value, positive: positive !== false, maxed: R.enhancementMaxed(G, id, tag, d) }); }
     function signed(value, suffix) { return (value >= 0 ? '+' : '') + value + suffix; }
-    if (!s.persistent) add('冷却', '-' + percent(1 - d.cd / (s.cd * 1000)) + '%', 'cooldown');
+    /* 固定间隔的全屏技能不参与冷却强化，右侧只显示固定值，不标满额。 */
+    if (s.fixedCd) add('冷却', '固定 ' + s.cd + 's');
+    else if (!s.persistent) add('冷却', '-' + percent(1 - d.cd / (s.cd * 1000)) + '%', 'cooldown');
     var damage = percent(d.dmg / (C.power.base * s.ratio) - 1);
     add('伤害', signed(damage, '%'), 'damage', damage >= 0);
-    var attribute = R.attributeBonus(G, s.el);
+    var attribute = R.skillAttributeBonus(G, id);
     if (attribute) add('其中属性', '+' + percent(attribute) + '%', 'attribute');
     if (d.count > (s.targets || 1)) add('多重', '+' + (d.count - (s.targets || 1)), 'multi');
     if (d.child) add('分裂', d.child + ' 目标', 'split');
@@ -199,63 +201,74 @@
     c.strokeStyle = '#293b58'; c.lineWidth = 1; c.stroke();
   }
   function menu() {
-    var c = ctx(), G = GP.state, candidates = G.progress.candidates, hero = GP.selectedCharacter();
+    var c = ctx(), G = GP.state, candidates = G.progress.candidates, hero = GP.previewCharacter();
     c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height);
     text('像素割草', 24, 29, 21, '#5ad1ff', 'left', 'middle', 'bold');
     text('金币  ' + G.progress.coins, 456, 29, 13, '#ffd166', 'right', 'middle');
-    panel(90, 58, 300, 244);
-    text('出 战 角 色', 240, 80, 11, '#8b95b3', 'center', 'middle');
-    c.strokeStyle = '#263b56'; c.beginPath(); c.ellipse(240, 235, 72, 14, 0, 0, Math.PI * 2); c.stroke();
-    sprite(C.sprites.hero, 240, 166 + Math.sin(G.time * 2) * 3, 13, hero);
-    text(hero.name, 240, 265, 21, hero.color, 'center', 'middle', 'bold');
-    C.characters.forEach(function (v, i) { c.fillStyle = v.id === hero.id ? hero.color : '#33415c'; rounded(221 + i * 16, 286, 7, 4, 2); c.fill(); });
-    G.ui.heroPrev = { x: 24, y: 146, w: 48, h: 60 }; G.ui.heroNext = { x: 408, y: 146, w: 48, h: 60 };
+    panel(90, 70, 300, 334);
+    text(R.characterUnlocked(G.progress, hero.id) ? '出战角色 · 点击查看说明' : '未解锁 · 通关 ' + hero.clears + ' 关解锁', 240, 96, 11, '#8b95b3', 'center', 'middle');
+    c.strokeStyle = '#263b56'; c.beginPath(); c.ellipse(240, 308, 80, 14, 0, 0, Math.PI * 2); c.stroke();
+    sprite(C.sprites.hero, 240, 220 + Math.sin(G.time * 2) * 3, 16, hero);
+    text(hero.name, 240, 354, 23, hero.color, 'center', 'middle', 'bold');
+    C.characters.forEach(function (v, i) { c.fillStyle = v.id === hero.id ? hero.color : '#33415c'; rounded(189 + i * 16, 382, 7, 4, 2); c.fill(); });
+    G.ui.heroPrev = { x: 24, y: 200, w: 48, h: 60 }; G.ui.heroNext = { x: 408, y: 200, w: 48, h: 60 };
     button(G.ui.heroPrev, '‹', '#17253b', '#5ad1ff'); button(G.ui.heroNext, '›', '#17253b', '#5ad1ff');
-    panel(24, 316, 432, 106);
-    text('基础属性', 40, 334, 12, '#8b95b3', 'left', 'middle');
-    G.ui.shop = { x: 342, y: 322, w: 100, h: 24 };
-    rounded(342, 322, 100, 24, 6); c.fillStyle = '#26324f'; c.fill();
-    text('强化  +', 392, 334, 12, '#5ad1ff', 'center', 'middle');
+    panel(24, 426, 432, 134);
+    text('基础属性', 40, 450, 12, '#8b95b3', 'left', 'middle');
+    G.ui.shop = { x: 342, y: 438, w: 100, h: 24 };
+    rounded(342, 438, 100, 24, 6); c.fillStyle = '#26324f'; c.fill();
+    text('强化  +', 392, 450, 12, '#5ad1ff', 'center', 'middle');
     var meta = G.progress.meta;
     function upgrade(id) { return C.meta.upgrades.filter(function (v) { return v.id === id; })[0]; }
-    var rows = [['攻击力', Math.round(C.power.base * (1 + meta.atk * upgrade('atk').per))],
+    var rows = [['攻击力', Math.round(C.power.base * (1 + meta.atk * upgrade('atk').per + (hero.el === 'physical' ? C.characterDamageBonus : 0)))],
       ['攻击加成', '+' + percent(meta.atk * upgrade('atk').per) + '%'],
       ['防御力', Math.round(C.hero.defense * (1 + meta.def * upgrade('def').per))],
       ['冷却缩减', percent(Math.min(upgrade('haste').cap, meta.haste * upgrade('haste').per)) + '%'],
       ['生命值', Math.round(C.hero.hp * (1 + meta.hp * upgrade('hp').per))], ['初始护盾', meta.shield * upgrade('shield').per]];
     rows.forEach(function (row, i) {
-      var x = 40 + i % 2 * 212, y = 358 + Math.floor(i / 2) * 23;
+      var x = 40 + i % 2 * 212, y = 483 + Math.floor(i / 2) * 28;
       text(row[0], x, y, 12, '#8b95b3', 'left', 'middle'); text(row[1], x + 164, y, 14, '#e8ecf7', 'right', 'middle', 'bold');
     });
-    G.ui.loadout = { x: 24, y: 436, w: 432, h: 102 }; panel(24, 436, 432, 102);
-    text('备战技能', 40, 456, 15, '#e8ecf7', 'left', 'middle', 'bold');
-    text(candidates.length + '/7  ·  点击配置 ›', 440, 456, 12, '#5ad1ff', 'right', 'middle');
+    G.ui.loadout = { x: 24, y: 582, w: 432, h: 134 }; panel(24, 582, 432, 134);
+    text('备战技能', 40, 608, 15, '#e8ecf7', 'left', 'middle', 'bold');
+    text(candidates.length + '/7  ·  点击配置 ›', 440, 608, 12, '#5ad1ff', 'right', 'middle');
     [C.loadout.initial].concat(candidates).forEach(function (id, i) {
-      var x = 40 + i * 50, v = R.skill(id); rounded(x, 475, 43, 29, 6); c.fillStyle = '#182d40'; c.fill();
-      text(v.name.slice(0, 2), x + 21, 490, 11, v.color, 'center', 'middle', 'bold');
+      var x = 40 + i * 50, v = R.skill(id); rounded(x, 634, 43, 36, 6); c.fillStyle = '#182d40'; c.fill();
+      text(v.name.slice(0, 2), x + 21, 652, 11, v.color, 'center', 'middle', 'bold');
     });
-    text('白银子弹固定携带 · 候选技能在局内升级时获取', 40, 522, 11, '#8b95b3', 'left', 'middle');
-    G.ui.start = { x: 24, y: 553, w: 432, h: 49 };
+    text('白银子弹固定携带 · 候选技能在局内升级时获取', 40, 694, 11, '#8b95b3', 'left', 'middle');
+    G.ui.start = { x: 24, y: 742, w: 432, h: 58 };
     button(G.ui.start, GP.canSelectLevel() ? '开 始 对 战  ›' : '普通关 · 备战 ' + candidates.length + '/7', '#33b3e6');
-    text(G.toast.time > 0 ? G.toast.text : '左右切换角色 · 当前角色共用养成属性', 240, 620, 11, G.toast.time > 0 ? '#ffd166' : '#8b95b3', 'center', 'middle');
+    text(G.toast.time > 0 ? G.toast.text : '左右切换角色 · 对应元素伤害 +15%', 240, 826, 11, G.toast.time > 0 ? '#ffd166' : '#8b95b3', 'center', 'middle');
     G.ui.candidates = [];
+    G.ui.character = { x: 90, y: 70, w: 300, h: 334 };
     if (G.loadoutOpen) loadoutDialog();
+    if (G.characterInfoOpen) {
+      c.fillStyle = 'rgba(0,0,0,.78)'; c.fillRect(0, 0, C.width, C.height); panel(34, 272, 412, 280);
+      text(hero.name, 240, 307, 24, hero.color, 'center', 'middle', 'bold');
+      text(R.characterUnlocked(G.progress, hero.id) ? '已解锁 · 可出战' : '通关 ' + hero.clears + ' 个不同关卡后解锁', 240, 344, 14, '#8b95b3', 'center', 'middle');
+      text('开局额外获得 15% ' + C.elements[hero.el].name + '伤害加成', 240, 385, 17, '#e8ecf7', 'center', 'middle');
+      text('与属性伤害卡加算，适用于对应元素技能', 240, 420, 13, '#aeb8d2', 'center', 'middle');
+      text('前置包含该元素的全屏技能也享受加成', 240, 446, 13, '#aeb8d2', 'center', 'middle');
+      G.ui.characterInfoDone = { x: 66, y: 486, w: 348, h: 44 };
+      button(G.ui.characterInfoDone, '知 道 了', '#33b3e6');
+    }
   }
   function loadoutDialog() {
     var c = ctx(), G = GP.state;
-    c.fillStyle = 'rgba(0,0,0,.78)'; c.fillRect(0, 0, C.width, C.height); panel(16, 56, 448, 536);
-    text('配置备战技能', 34, 82, 21, '#e8ecf7', 'left', 'middle', 'bold');
-    text('已选 ' + G.progress.candidates.length + '/7 · 点选或取消', 34, 111, 13, '#5ad1ff', 'left', 'middle');
+    c.fillStyle = 'rgba(0,0,0,.78)'; c.fillRect(0, 0, C.width, C.height); panel(16, 66, 448, 720);
+    text('配置备战技能', 34, 98, 21, '#e8ecf7', 'left', 'middle', 'bold');
+    text('已选 ' + G.progress.candidates.length + '/7 · 点选或取消', 34, 134, 13, '#5ad1ff', 'left', 'middle');
     G.ui.candidates = C.skills.filter(function (v) { return v.id !== C.loadout.initial && v.mode !== 'fullscreen'; }).map(function (v, i) {
-      var rect = { x: 30 + i % 2 * 215, y: 134 + Math.floor(i / 2) * 49, w: 205, h: 43, id: v.id };
+      var rect = { x: 30 + i % 2 * 215, y: 166 + Math.floor(i / 2) * 70, w: 205, h: 58, id: v.id };
       var selected = G.progress.candidates.indexOf(v.id) >= 0;
       rounded(rect.x, rect.y, rect.w, rect.h, 7); c.fillStyle = selected ? '#182d40' : '#10182b'; c.fill(); c.strokeStyle = selected ? v.color : '#29334a'; c.stroke();
-      text((selected ? '✓ ' : '+ ') + v.name, rect.x + 10, rect.y + 15, 14, selected ? v.color : '#cdd6ee', 'left', 'middle', 'bold');
-      text(v.tags.map(function (t) { return C.factions[t].name; }).join(' / '), rect.x + 10, rect.y + 32, 9, '#aeb8d2', 'left', 'middle');
+      text((selected ? '✓ ' : '+ ') + v.name, rect.x + 10, rect.y + 20, 14, selected ? v.color : '#cdd6ee', 'left', 'middle', 'bold');
+      text(v.tags.map(function (t) { return C.factions[t].name; }).join(' / '), rect.x + 10, rect.y + 42, 9, '#aeb8d2', 'left', 'middle');
       return rect;
     });
-    text(G.toast.time > 0 ? G.toast.text : '普通关最多装备 6 技能；无尽模式不受备战限制', 240, 501, 11, '#ffd166', 'center', 'middle');
-    G.ui.loadoutDone = { x: 34, y: 528, w: 412, h: 44 }; button(G.ui.loadoutDone, '保 存 配 置', '#33b3e6');
+    text(G.toast.time > 0 ? G.toast.text : '普通关最多装备 6 技能；无尽模式不受备战限制', 240, 690, 11, '#ffd166', 'center', 'middle');
+    G.ui.loadoutDone = { x: 34, y: 724, w: 412, h: 44 }; button(G.ui.loadoutDone, '保 存 配 置', '#33b3e6');
   }
   function drawStars(x, y, stars, flawless, size) { var c = ctx(), gap = size + 12, start = x - gap;
     for (var i = 0; i < 3; i++) { if (flawless) { c.strokeStyle = '#fff3a3'; c.lineWidth = 3; rounded(start + i * gap - size / 2 - 5, y - size / 2 - 5, size + 10, size + 10, 8); c.stroke(); }
@@ -263,15 +276,15 @@
   }
   function levelSelect() { var c = ctx(), G = GP.state; c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height); text('常 规 关 卡', C.width / 2, 48, 26, '#e8ecf7', 'center', 'middle', 'bold');
     G.ui.levelButtons = [];
-    C.levels.forEach(function (level, i) { var unlocked = GP.isLevelUnlocked(i), y = 90 + i * 70, rect = { x: 55, y: y, w: 370, h: 60, index: i, unlocked: unlocked && GP.loadoutReady() }; G.ui.levelButtons.push(rect);
+    C.levels.forEach(function (level, i) { var unlocked = GP.isLevelUnlocked(i), y = 114 + i * 100, rect = { x: 55, y: y, w: 370, h: 80, index: i, unlocked: unlocked && GP.loadoutReady() }; G.ui.levelButtons.push(rect);
       rounded(rect.x, rect.y, rect.w, rect.h, 12); c.fillStyle = unlocked ? '#16203a' : '#0c111e'; c.fill(); c.strokeStyle = unlocked ? '#33456f' : '#20283b'; c.stroke();
-      text((i + 1) + '. ' + level.name, rect.x + 18, y + 30, 16, rect.unlocked ? '#fff' : '#596176', 'left', 'middle', 'bold');
+      text((i + 1) + '. ' + level.name, rect.x + 18, y + 40, 16, rect.unlocked ? '#fff' : '#596176', 'left', 'middle', 'bold');
       if (unlocked && !GP.loadoutReady()) text('需选满 7 个备战技能',rect.x+350,y+30,10,'#8b95b3','right','middle');
-      else if (unlocked) drawStars(rect.x + 275, y + 30, G.progress.stars[i] || 0, !!G.progress.flawless[i], 18); else text('🔒', rect.x + 330, y + 30, 18, '#596176', 'center', 'middle');
+      else if (unlocked) drawStars(rect.x + 275, y + 40, G.progress.stars[i] || 0, !!G.progress.flawless[i], 18); else text('🔒', rect.x + 330, y + 40, 18, '#596176', 'center', 'middle');
     });
     var starTotal = 0; (G.progress.stars || []).forEach(function (n) { starTotal += n || 0; });
     text('星辉：第 2 关起每颗星 +15% 伤害' + (starTotal ? '（当前 ★' + starTotal + ' → +' + (starTotal * 15) + '%）' : ''),
-      C.width / 2, 480, 11, '#8b95b3', 'center', 'middle');
+      C.width / 2, 660, 11, '#8b95b3', 'center', 'middle');
   }
   function endlessSelect() {
     var c = ctx(), G = GP.state, unlocked = GP.isEndlessUnlocked(), record = G.progress.endless;
@@ -280,20 +293,20 @@
     text('无 尽 模 式', C.width / 2, 106, 28, '#e8ecf7', 'center', 'middle', 'bold');
     [{ x: 38, label: '最高通过波次', value: record.bestWave, unit: '波' },
       { x: 248, label: '单局最多击杀', value: record.bestKills, unit: '只' }].forEach(function (item) {
-      rounded(item.x, 154, 194, 112, 14); c.fillStyle = '#1a1630'; c.fill(); c.strokeStyle = '#4a386c'; c.stroke();
-      text(item.label, item.x + 97, 180, 13, '#b7a5d6', 'center', 'middle');
-      text(item.value, item.x + 97, 218, String(item.value).length > 7 ? 22 : 32, '#e8ecf7', 'center', 'middle', 'bold');
-      text(item.unit, item.x + 97, 248, 11, '#8b95b3', 'center', 'middle');
+      rounded(item.x, 184, 194, 112, 14); c.fillStyle = '#1a1630'; c.fill(); c.strokeStyle = '#4a386c'; c.stroke();
+      text(item.label, item.x + 97, 216, 13, '#b7a5d6', 'center', 'middle');
+      text(item.value, item.x + 97, 260, String(item.value).length > 7 ? 22 : 32, '#e8ecf7', 'center', 'middle', 'bold');
+      text(item.unit, item.x + 97, 292, 11, '#8b95b3', 'center', 'middle');
     });
-    text('每波 1000 普通怪 + 3 小首领 + 2 大首领', 48, 304, 14, '#cdd6ee', 'left', 'middle');
-    text('所有技能均可获取，装备数量不限', 48, 336, 13, '#aeb8d2', 'left', 'middle');
-    text('保留全屏前置及风系 / 不可知域互斥', 48, 364, 13, '#aeb8d2', 'left', 'middle');
-    text('金币、经验均为普通关的 50%', 48, 392, 13, '#aeb8d2', 'left', 'middle');
+    text('每波 1000 普通怪 + 3 小首领 + 2 大首领', 48, 362, 14, '#cdd6ee', 'left', 'middle');
+    text('所有技能均可获取，装备数量不限', 48, 410, 13, '#aeb8d2', 'left', 'middle');
+    text('保留全屏前置及风系 / 不可知域互斥', 48, 458, 13, '#aeb8d2', 'left', 'middle');
+    text('金币、经验均为普通关的 50%', 48, 506, 13, '#aeb8d2', 'left', 'middle');
     var clears = G.progress.stars.slice(0, C.endless.unlockClears).filter(function (n) { return n > 0; }).length;
-    text(unlocked ? '已解锁 · 无需选择备战技能' : '前三关至少一星通关后解锁 · ' + clears + '/3', C.width / 2, 436, 13, unlocked ? '#7cff6b' : '#b7a5d6', 'center', 'middle');
-    G.ui.endlessStart = { x: 55, y: 463, w: 370, h: 48 };
+    text(unlocked ? '已解锁 · 无需选择备战技能' : '前三关至少一星通关后解锁 · ' + clears + '/3', C.width / 2, 590, 13, unlocked ? '#7cff6b' : '#b7a5d6', 'center', 'middle');
+    G.ui.endlessStart = { x: 55, y: 624, w: 370, h: 48 };
     button(G.ui.endlessStart, unlocked ? '开 始 无 尽 挑 战' : '尚 未 解 锁', unlocked ? '#a378fc' : '#1b2438', unlocked ? '#130a22' : '#717c98');
-    text('记录保存在当前设备 · 进入下一波即通过上一波', C.width / 2, 419, 10, '#8b95b3', 'center', 'middle');
+    text('记录保存在当前设备 · 进入下一波即通过上一波', C.width / 2, 554, 10, '#8b95b3', 'center', 'middle');
   }
   function selectionPages(dt) {
     var c = ctx(), G = GP.state, page = G.state === 'levelselect' ? 0 : 1, turn = G.pageTurn;
@@ -302,7 +315,7 @@
       if (index === 0) levelSelect(); else endlessSelect();
       c.restore();
     }
-    c.save(); c.beginPath(); c.rect(0, 0, C.width, 520); c.clip();
+    c.save(); c.beginPath(); c.rect(0, 0, C.width, 700); c.clip();
     if (turn && turn.time > 0) {
       turn.time = Math.max(0, turn.time - dt);
       var t = 1 - Math.pow(turn.time / turn.duration, 3);
@@ -310,14 +323,14 @@
       drawPage(page, turn.direction * (1 - t) * C.width);
     } else drawPage(page, 0);
     c.restore();
-    G.ui.selectPrev = { x: 55, y: 528, w: 60, h: 38 };
-    G.ui.selectNext = { x: 365, y: 528, w: 60, h: 38 };
+    G.ui.selectPrev = { x: 55, y: 714, w: 60, h: 38 };
+    G.ui.selectNext = { x: 365, y: 714, w: 60, h: 38 };
     button(G.ui.selectPrev, '‹', page === 1 ? '#26324f' : '#101522', page === 1 ? '#cdd6ee' : '#414b60');
     button(G.ui.selectNext, '›', page === 0 ? '#26324f' : '#101522', page === 0 ? '#cdd6ee' : '#414b60');
-    text((page + 1) + ' / 2', C.width / 2, 541, 17, '#e8ecf7', 'center', 'middle', 'bold');
-    text(page === 0 ? '常规关卡' : '无尽模式', C.width / 2, 561, 11, '#8b95b3', 'center', 'middle');
-    G.ui.menu = { x: 55, y: 584, w: 170, h: 34 }; button(G.ui.menu, '返回备战', '#26324f', '#cdd6ee');
-    G.ui.shop = { x: 255, y: 584, w: 170, h: 34 }; button(G.ui.shop, '局外强化', '#26324f', '#cdd6ee');
+    text((page + 1) + ' / 2', C.width / 2, 727, 17, '#e8ecf7', 'center', 'middle', 'bold');
+    text(page === 0 ? '常规关卡' : '无尽模式', C.width / 2, 747, 11, '#8b95b3', 'center', 'middle');
+    G.ui.menu = { x: 55, y: 790, w: 170, h: 34 }; button(G.ui.menu, '返回备战', '#26324f', '#cdd6ee');
+    G.ui.shop = { x: 255, y: 790, w: 170, h: 34 }; button(G.ui.shop, '局外强化', '#26324f', '#cdd6ee');
   }
   function levelUp() {
     var c = ctx(), G = GP.state;
@@ -325,23 +338,23 @@
     text('选择技能或强化', C.width / 2, 65, 24, '#ffd166', 'center', 'middle', 'bold');
     text('第 ' + (G.choicesCompleted + 1) + ' 次选择 · 装备 ' + GP.ownedSkills() + (GP.isEndless() ? ' / 不限' : '/6') + ' · 至少一个强化选项', C.width / 2, 96, 12, '#aeb8d2', 'center', 'middle');
     G.ui.cards = G.choices.map(function (choice, i) {
-      var card = choice.card, next = choice.level + 1, capped = !card.unlock && R.enhancementMaxed(G, card.skill, card.tag), rect = { x: 26, y: 120 + i * 91, w: 428, h: 81, choice: choice };
+      var card = choice.card, next = choice.level + 1, capped = !card.unlock && R.enhancementMaxed(G, card.skill, card.tag), rect = { x: 26, y: 140 + i * 130, w: 428, h: 108, choice: choice };
       rounded(rect.x, rect.y, rect.w, rect.h, 10); c.fillStyle = '#16203a'; c.fill(); c.strokeStyle = card.color; c.stroke();
-      text(card.name + (card.unlock ? '' : ' Lv.' + next), rect.x + 14, rect.y + 19, 16, capped ? '#ff5d6c' : card.color, 'left', 'middle', 'bold');
-      text(card.unlock ? '新技能' : '强化', rect.x + rect.w - 14, rect.y + 19, 11, '#aeb8d2', 'right', 'middle');
-      text(R.describe(card, next), rect.x + 14, rect.y + 43, 11, capped ? '#ff5d6c' : '#e8ecf7', 'left', 'middle');
+      text(card.name + (card.unlock ? '' : ' Lv.' + next), rect.x + 14, rect.y + 24, 16, capped ? '#ff5d6c' : card.color, 'left', 'middle', 'bold');
+      text(card.unlock ? '新技能' : '强化', rect.x + rect.w - 14, rect.y + 24, 11, '#aeb8d2', 'right', 'middle');
+      text(R.describe(card, next), rect.x + 14, rect.y + 56, 11, capped ? '#ff5d6c' : '#e8ecf7', 'left', 'middle');
       var lastSlot = !GP.isEndless() && GP.ownedSkills() === 5;
       var warning = card.unlock && lastSlot ? '占用最后一格，之后只出现强化' : card.cost || (card.unlock ? '独立获得技能，不附带任何强化' : '无伤害代价');
       if (card.unlock === 'chain') warning = '扣防后伤害减半；' + (lastSlot ? '占用最后一格' : '获取不附带强化');
       if (capped) warning = '当前加成已满，本次无增益；' + card.cost;
-      text(warning, rect.x + 14, rect.y + 64, 11, capped ? '#ff5d6c' : card.cost ? '#ffb27d' : '#7cff6b', 'left', 'middle');
+      text(warning, rect.x + 14, rect.y + 84, 11, capped ? '#ff5d6c' : card.cost ? '#ffb27d' : '#7cff6b', 'left', 'middle');
       return rect;
     });
-    if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 503, 12, '#8fe9ff', 'center', 'middle');
-    G.ui.refresh = { x: 160, y: 526, w: 160, h: 40 }; button(G.ui.refresh, '刷新 ×' + G.refreshes, G.refreshes ? '#1b4b5f' : '#141c30', G.refreshes ? '#63e6be' : '#5b6787');
-    text('每 3 次选择保底新技能（有合资格候选时）；刷新不计次', C.width / 2, 580, 11, '#aeb8d2', 'center', 'middle');
-    text(GP.isEndless() ? '每通过 3 波获得一次刷新 · 特殊强化满级后仅剩两类伤害卡' : '通过第 3 / 6 / 9 波各获得一次刷新', C.width / 2, 597, 11, '#aeb8d2', 'center', 'middle');
-    if (GP.fullscreenChance()) text('本轮全屏概率 ' + GP.fullscreenChance() + '% · 未选择继续累计，选中后重置', C.width / 2, 614, 10, '#c8afff', 'center', 'middle');
+    if (G.pendingLevelUps > 1) text('还有 ' + (G.pendingLevelUps - 1) + ' 次升级待选择', C.width / 2, 670, 12, '#8fe9ff', 'center', 'middle');
+    G.ui.refresh = { x: 160, y: 702, w: 160, h: 40 }; button(G.ui.refresh, '刷新 ×' + G.refreshes, G.refreshes ? '#1b4b5f' : '#141c30', G.refreshes ? '#63e6be' : '#5b6787');
+    text('每 3 次选择保底新技能（有合资格候选时）；刷新不计次', C.width / 2, 770, 11, '#aeb8d2', 'center', 'middle');
+    text(GP.isEndless() ? '每通过 3 波获得一次刷新 · 特殊强化满级后仅剩两类伤害卡' : '通过第 3 / 6 / 9 波各获得一次刷新', C.width / 2, 792, 11, '#aeb8d2', 'center', 'middle');
+    if (GP.fullscreenChance()) text('本轮全屏概率 ' + GP.fullscreenChance() + '% · 未选择继续累计，选中后重置', C.width / 2, 814, 10, '#c8afff', 'center', 'middle');
   }
   function metaScreen() { var c = ctx(), G = GP.state; c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height);
     text('局 外 强 化', C.width / 2, 52, 26, '#e8ecf7', 'center', 'middle', 'bold');
@@ -350,28 +363,28 @@
     text('星辉 ★' + stars + ' · 攻击 +' + Math.round(stars * C.starBonus.perStar * 100) + '%', C.width / 2, 104, 12, '#ffd166', 'center', 'middle');
     G.ui.metaRows = [];
     C.meta.upgrades.forEach(function (upg, i) {
-      var y = 116 + i * 82, lv = (G.progress.meta && G.progress.meta[upg.id]) || 0;
+      var y = 140 + i * 114, lv = (G.progress.meta && G.progress.meta[upg.id]) || 0;
       var maxed = lv >= upg.max, cost = GP.metaCost(upg.id), affordable = !maxed && (G.progress.coins || 0) >= cost;
-      rounded(28, y, 424, 76, 12); c.fillStyle = '#16203a'; c.fill(); c.strokeStyle = '#33456f'; c.lineWidth = 1; c.stroke();
-      text(upg.name + '  Lv.' + lv + '/' + upg.max, 44, y + 22, 16, '#fff', 'left', 'middle', 'bold');
-      text(upg.desc, 44, y + 42, 12, '#aeb8d2', 'left', 'middle');
+      rounded(28, y, 424, 96, 12); c.fillStyle = '#16203a'; c.fill(); c.strokeStyle = '#33456f'; c.lineWidth = 1; c.stroke();
+      text(upg.name + '  Lv.' + lv + '/' + upg.max, 44, y + 26, 16, '#fff', 'left', 'middle', 'bold');
+      text(upg.desc, 44, y + 52, 12, '#aeb8d2', 'left', 'middle');
       var cur = upg.id === 'atk' ? (C.power.base * (1 + lv * upg.per)).toFixed(0) + ' 攻击（+' + percent(lv * upg.per) + '%）'
         : upg.id === 'hp' ? (C.hero.hp * (1 + lv * upg.per)).toFixed(0) + ' HP（+' + percent(lv * upg.per) + '%）'
         : upg.id === 'shield' ? '+' + (lv * upg.per) + ' 护盾'
         : upg.id === 'def' ? (C.hero.defense * (1 + lv * upg.per)).toFixed(0) + ' 防御（+' + percent(lv * upg.per) + '%）'
         : '-' + percent(Math.min(upg.cap, lv * upg.per)) + '% 冷却';
-      text('当前 ' + cur, 44, y + 62, 12, '#7cff6b', 'left', 'middle');
-      var btn = { x: 330, y: y + 28, w: 104, h: 32, id: upg.id };
+      text('当前 ' + cur, 44, y + 78, 12, '#7cff6b', 'left', 'middle');
+      var btn = { x: 330, y: y + 32, w: 104, h: 32, id: upg.id };
       G.ui.metaRows.push(btn);
       rounded(btn.x, btn.y, btn.w, btn.h, 8); c.fillStyle = maxed ? '#20283b' : (affordable ? '#33b3e6' : '#26324f'); c.fill();
       text(maxed ? '已满级' : (cost + ' 金币'), btn.x + btn.w / 2, btn.y + btn.h / 2 + 1, 12,
         maxed ? '#596176' : (affordable ? '#05121c' : '#8b95b3'), 'center', 'middle', 'bold');
     });
     var canReset = GP.metaResetQuote().levels > 0;
-    G.ui.metaBack = { x: 55, y: 548, w: 170, h: 42 }; button(G.ui.metaBack, '返 回', '#26324f', '#cdd6ee');
-    G.ui.metaReset = { x: 255, y: 548, w: 170, h: 42 };
+    G.ui.metaBack = { x: 55, y: 746, w: 170, h: 42 }; button(G.ui.metaBack, '返 回', '#26324f', '#cdd6ee');
+    G.ui.metaReset = { x: 255, y: 746, w: 170, h: 42 };
     button(G.ui.metaReset, canReset ? '重置强化' : '暂无强化', canReset ? '#452632' : '#1b2438', canReset ? '#ffb2ba' : '#717c98');
-    text('重置返还已投入强化金币的 ' + percent(C.meta.refundRatio) + '%', C.width / 2, 610, 11, '#aeb8d2', 'center', 'middle');
+    text('重置返还已投入强化金币的 ' + percent(C.meta.refundRatio) + '%', C.width / 2, 820, 11, '#aeb8d2', 'center', 'middle');
     if (G.metaResetOpen) metaResetDialog();
   }
   function metaResetDialog() {

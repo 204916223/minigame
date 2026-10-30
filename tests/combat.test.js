@@ -5,7 +5,7 @@ function run(){const h=createGame();h.GP.resetRun(0);return h;}
 test('提速弹道在远处目标横移前命中，维持直线和原施放间隔，低帧率不穿靶',()=>{
  for(const skill of ['basic','windblade','icecone','waterball','fireball','poisonbottle']) {
   for(const dt of [1/60,1/20]) {
-   const h=run(),t=h.target(80,100),d={...h.R.derive(h.G,skill),count:1},cd=d.cd;
+   const h=run(),t=h.target(80,h.C.hero.y-452),d={...h.R.derive(h.G,skill),count:1},cd=d.cd;
    h.GP.combat.cast(d);const b=h.G.bullets[0],vx=b.vx,vy=b.vy;
    let time=0;
    while(time<.4 && t.hp===t.maxhp){t.x+=60*dt;t.y+=34*dt;h.GP.combat.update(dt);time+=dt;}

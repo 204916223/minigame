@@ -16,7 +16,7 @@
   function makeState() {
     return {
       state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0, pageTurn: null,
-      battleSpeed: 1, speedUnlockOpen: false, loadoutOpen: false,
+      battleSpeed: 1, speedUnlockOpen: false, loadoutOpen: false, characterInfoOpen: false, characterPreview: null,
       player: {}, skills: {}, cardLevels: {}, cardOrder: [],
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
       spawnTimer: 0, shake: 0, damageFlash: 0,
@@ -55,11 +55,16 @@
   function selectedCharacter() {
     return C.characters.filter(function (v) { return v.id === G.progress.character; })[0] || C.characters[0];
   }
+  function previewCharacter() {
+    return C.characters.filter(function (v) { return v.id === G.characterPreview; })[0] || selectedCharacter();
+  }
   function changeCharacter(direction) {
-    if (G.state !== 'menu' || G.loadoutOpen) return false;
-    var index = C.characters.indexOf(selectedCharacter());
-    G.progress.character = C.characters[(index + (direction < 0 ? -1 : 1) + C.characters.length) % C.characters.length].id;
-    P.saveProgress(G.progress); return true;
+    if (G.state !== 'menu' || G.loadoutOpen || G.characterInfoOpen) return false;
+    var index = C.characters.indexOf(previewCharacter());
+    var hero = C.characters[(index + (direction < 0 ? -1 : 1) + C.characters.length) % C.characters.length];
+    G.characterPreview = hero.id;
+    if (R.characterUnlocked(G.progress, hero.id)) { G.progress.character = hero.id; P.saveProgress(G.progress); }
+    return true;
   }
   function toggleCandidate(id) {
     var s = R.skill(id);
@@ -84,7 +89,7 @@
     var shield = (meta.shield || 0) * upgShield.per;
     var defense = C.hero.defense * (1 + (meta.def || 0) * upgDef.per);
     var hastePct = Math.min(upgHaste.cap, (meta.haste || 0) * upgHaste.per);
-    G.player = { hp: maxhp, maxhp: maxhp, shield: shield, maxShield: shield, defense: defense, cdMul: 1 - hastePct,
+    G.player = { characterElement: selectedCharacter().el, hp: maxhp, maxhp: maxhp, shield: shield, maxShield: shield, defense: defense, cdMul: 1 - hastePct,
       lvl: 1, xp: 0, xpv: xpNeed(1), kills: 0, aim: -Math.PI / 2,
       starBonus: totalStars, damageBonus: (starMul - 1) + (atkMul - 1), damageMul: starMul + atkMul - 1, haste: hastePct };
     G.coins = 0; G.lastCoins = 0;
@@ -472,6 +477,7 @@
   function loadoutReady() { return G.progress.candidates.length === C.loadout.candidates; }
   function canSelectLevel() { return loadoutReady() || isEndlessUnlocked(); }
   function openLevelSelect() {
+    if (G.state === 'menu' && !R.characterUnlocked(G.progress, previewCharacter().id)) { toast('该角色尚未解锁，请切换已解锁角色'); return false; }
     if (!canSelectLevel()) {
       toast('请先选满 7 个候选技能（当前 ' + G.progress.candidates.length + '/7）', '#ffd166');
       return false;
@@ -505,7 +511,7 @@
     G.skillPage = next; G.focusedSkill = G.equippedOrder[next * C.loadout.slots]; return true;
   }
   PM.Gameplay = {
-    state: G, combat: combat, selectedCharacter: selectedCharacter, changeCharacter: changeCharacter, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openEndlessSelect: openEndlessSelect, returnToSelection: returnToSelection, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
+    state: G, combat: combat, selectedCharacter: selectedCharacter, changeCharacter: changeCharacter, previewCharacter: previewCharacter, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openEndlessSelect: openEndlessSelect, returnToSelection: returnToSelection, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
     isLevelUnlocked: isLevelUnlocked, isEndless: isEndless, isEndlessUnlocked: isEndlessUnlocked, loadoutReady: loadoutReady, canSelectLevel: canSelectLevel, canContinue: canContinue, calculateStars: calculateStars,
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
     ownedSkills: ownedSkills, selectSkill: selectSkill, changeSkillPage: changeSkillPage, changeSelectionPage: changeSelectionPage,

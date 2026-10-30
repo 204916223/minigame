@@ -29,6 +29,10 @@
       return;
     }
     if (G.state === 'menu') {
+      if (G.characterInfoOpen) {
+        if (inside(x, y, G.ui.characterInfoDone)) G.characterInfoOpen = false;
+        return;
+      }
       if (G.loadoutOpen) {
         if (inside(x, y, G.ui.loadoutDone)) { G.loadoutOpen = false; return; }
         var candidates = G.ui.candidates || [];
@@ -37,6 +41,7 @@
       }
       if (inside(x, y, G.ui.heroPrev)) GP.changeCharacter(-1);
       else if (inside(x, y, G.ui.heroNext)) GP.changeCharacter(1);
+      else if (inside(x, y, G.ui.character)) G.characterInfoOpen = true;
       else if (inside(x, y, G.ui.loadout)) G.loadoutOpen = true;
       else if (inside(x, y, G.ui.shop)) GP.openMeta();
       else if (inside(x, y, G.ui.start)) GP.openLevelSelect();
@@ -87,7 +92,7 @@
     else {
       canvas.addEventListener('pointerdown', function (event) { var point = P.logical(event.clientX, event.clientY, canvas.getBoundingClientRect()); tap(point.x, point.y); });
       window.addEventListener('keydown', function (event) { var G = GP.state;
-        if (event.code === 'Space' && G.state === 'menu' && !G.loadoutOpen) { event.preventDefault(); A.unlock(); GP.openLevelSelect(); }
+        if (event.code === 'Space' && G.state === 'menu' && !G.loadoutOpen && !G.characterInfoOpen) { event.preventDefault(); A.unlock(); GP.openLevelSelect(); }
         else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && (G.state === 'levelselect' || G.state === 'endlessselect')) {
           event.preventDefault(); GP.changeSelectionPage(event.key === 'ArrowLeft' ? -1 : 1);
         }
@@ -95,6 +100,7 @@
         else if (event.key === 'm' || event.key === 'M') GP.toast(A.toggle() ? '已静音' : '声音开启', '#cdd6ee');
       });
       window.addEventListener('resize', P.setupCanvas);
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', P.setupCanvas);
     }
   }
   PM.Input = { bind: bind, tap: tap };
