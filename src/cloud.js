@@ -244,7 +244,7 @@
     if (authBusy) return;
     var input = validate(); if (!input) return;
     authBusy = true; setStatus(isNew ? '注册中…' : '登录中…');
-    hashOf(input.account, input.password).then(function (hash) {
+    return hashOf(input.account, input.password).then(function (hash) {
       return cloud.database.rpc(isNew ? 'player_register' : 'player_login', { p_account: input.account, p_password_hash: hash }).then(function (res) {
         if (res && res.error) throw res.error;
         if (!res || !res.data) { setStatus('账号或密码错误'); return; }
@@ -256,8 +256,8 @@
       setStatus(err.message === 'registration_reward_pending' ? '账号已创建，赠送金币尚未保存，请点击登录重试' : mapErr(err));
     }).then(function () { authBusy = false; });
   }
-  function doLogin() { authenticate(false); }
-  function doRegister() { authenticate(true); }
+  function doLogin() { return authenticate(false); }
+  function doRegister() { return authenticate(true); }
 
   buildUi();
   var stored = readJson(SESSION_KEY);
