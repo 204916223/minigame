@@ -200,15 +200,36 @@
     var c = ctx(); rounded(x, y, w, h, 16); c.fillStyle = '#10182b'; c.fill();
     c.strokeStyle = '#293b58'; c.lineWidth = 1; c.stroke();
   }
+  function characterLock() {
+    var c = ctx();
+    // 两条交叉锁链，使用轮廓链环，保持角色本身可辨认。
+    [-1, 1].forEach(function (direction) {
+      c.save(); c.translate(240, 222); c.rotate(direction * .55);
+      for (var i = -5; i <= 5; i++) {
+        rounded(i * 19 - 14, -8, 28, 16, 8);
+        c.strokeStyle = '#101522'; c.lineWidth = 7; c.stroke();
+        c.strokeStyle = i % 2 ? '#748198' : '#a9b4c7'; c.lineWidth = 3; c.stroke();
+      }
+      c.restore();
+    });
+    c.save(); c.strokeStyle = '#c2cbda'; c.lineWidth = 6;
+    rounded(225, 199, 30, 36, 13); c.stroke();
+    rounded(215, 220, 50, 42, 7); c.fillStyle = '#26324a'; c.fill();
+    c.strokeStyle = '#b0bbce'; c.lineWidth = 2; c.stroke();
+    c.fillStyle = '#ffd166'; c.beginPath(); c.arc(240, 237, 4, 0, Math.PI * 2); c.fill(); c.fillRect(238, 239, 4, 9);
+    c.restore();
+  }
   function menu() {
-    var c = ctx(), G = GP.state, candidates = G.progress.candidates, hero = GP.previewCharacter();
+    var c = ctx(), G = GP.state, candidates = G.progress.candidates, hero = GP.previewCharacter(), locked = !R.characterUnlocked(G.progress, hero.id);
     c.fillStyle = '#070a12'; c.fillRect(0, 0, C.width, C.height);
     text('像素割草', 24, 29, 21, '#5ad1ff', 'left', 'middle', 'bold');
     text('金币  ' + G.progress.coins, 456, 29, 13, '#ffd166', 'right', 'middle');
     panel(90, 70, 300, 334);
     text(R.characterUnlocked(G.progress, hero.id) ? '出战角色 · 点击查看说明' : '未解锁 · 通关 ' + hero.clears + ' 关解锁', 240, 96, 11, '#8b95b3', 'center', 'middle');
     c.strokeStyle = '#263b56'; c.beginPath(); c.ellipse(240, 308, 80, 14, 0, 0, Math.PI * 2); c.stroke();
-    sprite(C.sprites.hero, 240, 220 + Math.sin(G.time * 2) * 3, 16, hero);
+    c.save(); if (locked) c.globalAlpha = .38;
+    sprite(C.sprites.hero, 240, 220 + Math.sin(G.time * 2) * 3, 16, hero); c.restore();
+    if (locked) characterLock();
     text(hero.name, 240, 354, 23, hero.color, 'center', 'middle', 'bold');
     C.characters.forEach(function (v, i) { c.fillStyle = v.id === hero.id ? hero.color : '#33415c'; rounded(189 + i * 16, 382, 7, 4, 2); c.fill(); });
     G.ui.heroPrev = { x: 24, y: 200, w: 48, h: 60 }; G.ui.heroNext = { x: 408, y: 200, w: 48, h: 60 };
@@ -237,8 +258,8 @@
       text(v.name.slice(0, 2), x + 21, 652, 11, v.color, 'center', 'middle', 'bold');
     });
     text('白银子弹固定携带 · 候选技能在局内升级时获取', 40, 694, 11, '#8b95b3', 'left', 'middle');
-    G.ui.start = { x: 24, y: 742, w: 432, h: 58 };
-    button(G.ui.start, GP.canSelectLevel() ? '开 始 对 战  ›' : '普通关 · 备战 ' + candidates.length + '/7', '#33b3e6');
+    G.ui.start = { x: 24, y: 742, w: 432, h: 58, disabled: locked || !GP.canSelectLevel() };
+    button(G.ui.start, locked ? '角 色 未 解 锁' : GP.canSelectLevel() ? '开 始 对 战  ›' : '普通关 · 备战 ' + candidates.length + '/7', G.ui.start.disabled ? '#263044' : '#33b3e6', G.ui.start.disabled ? '#78849a' : '#05121c');
     text(G.toast.time > 0 ? G.toast.text : '左右切换角色 · 对应元素伤害 +15%', 240, 826, 11, G.toast.time > 0 ? '#ffd166' : '#8b95b3', 'center', 'middle');
     G.ui.candidates = [];
     G.ui.character = { x: 90, y: 70, w: 300, h: 334 };

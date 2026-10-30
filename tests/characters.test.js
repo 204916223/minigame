@@ -30,13 +30,30 @@ test('七角色开局对应元素加15%，全屏按前置共享，普通异属�
 test('角色说明弹窗隔离点击和空格；锁定角色不能出战；可用角色保存并进入战斗',()=>{
  const h=createGame({character:'physical'});h.PM.Input.bind();const render=()=>h.PM.Renderer.render(0);
  const tap=r=>{h.advanceClock(300);h.PM.Input.tap(r.x+r.w/2,r.y+r.h/2);render();};
- render();tap(h.G.ui.heroPrev);assert.equal(h.GP.previewCharacter().id,'ice');
+ render();assert.equal(h.G.ui.start.disabled,false);
+ tap(h.G.ui.heroPrev);assert.equal(h.GP.previewCharacter().id,'ice');assert.equal(h.G.ui.start.disabled,true);
+ h.events.keydown({code:'Space',preventDefault(){}});assert.equal(h.G.state,'menu');
+ assert.equal(h.GP.openLevelSelect(),false);
  tap(h.G.ui.start);assert.equal(h.G.state,'menu');assert.match(h.G.toast.text,/未解锁/);
  tap(h.G.ui.character);assert.equal(h.G.characterInfoOpen,true);
  tap(h.G.ui.heroNext);assert.equal(h.GP.previewCharacter().id,'ice');
  h.events.keydown({code:'Space',preventDefault(){}});assert.equal(h.G.state,'menu');
  tap(h.G.ui.characterInfoDone);tap(h.G.ui.heroNext);tap(h.G.ui.heroNext);
- assert.equal(h.GP.selectedCharacter().id,'fire');
+ assert.equal(h.GP.selectedCharacter().id,'fire');assert.equal(h.G.ui.start.disabled,false);
  const stored=JSON.parse(h.storage['pixelMowProgress.v3']);assert.equal(createGame(stored).GP.selectedCharacter().id,'fire');
  tap(h.G.ui.start);assert.equal(h.G.state,'levelselect');h.GP.resetRun(0);assert.equal(h.G.player.characterElement,'fire');
+});
+
+test('所有锁定角色的对战按钮均置灰，进度解锁后立即恢复',()=>{
+ const h=createGame({character:'physical'}),ctx=h.PM.Platform.ctx();let drawn=[];
+ ctx.fillText=value=>drawn.push({text:String(value),color:ctx.fillStyle});
+ for(const hero of h.C.characters.slice(2)){
+  h.G.characterPreview=hero.id;drawn=[];h.PM.Renderer.render(0);
+  assert.equal(h.G.ui.start.disabled,true,hero.id);
+  assert.ok(drawn.some(v=>v.text==='角 色 未 解 锁'&&v.color==='#78849a'));
+  assert.equal(h.GP.openLevelSelect(),false);
+  h.G.progress.stars=Array(hero.clears).fill(1);h.PM.Renderer.render(0);
+  assert.equal(h.G.ui.start.disabled,false);assert.equal(h.GP.openLevelSelect(),true);
+  h.GP.openMenu();h.G.progress.stars=[];
+ }
 });
