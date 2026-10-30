@@ -126,6 +126,11 @@
       out.stars[i] = isFinite(n) ? Math.max(0, Math.min(3, Math.floor(n))) : 0;
       out.flawless[i] = !!(Array.isArray(p.flawless) && p.flawless[i]);
     });
+    out.rewards = { registration: !!(p.rewards && p.rewards.registration === true), firstClears: [] };
+    C.levels.forEach(function (_, i) {
+      // 老存档不追发已有通关奖励；新增标记也覆盖零星通关的去重。
+      out.rewards.firstClears[i] = p.rewards && Array.isArray(p.rewards.firstClears) ? p.rewards.firstClears[i] === true : out.stars[i] > 0;
+    });
     out.coins = Number.isFinite(p.coins) ? Math.max(0, p.coins) : 0;
     C.meta.upgrades.forEach(function (u) {
       var n = p.meta && p.meta[u.id];

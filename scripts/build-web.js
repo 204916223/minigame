@@ -3,7 +3,7 @@
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const root = path.resolve(__dirname, '..'), out = path.join(root, 'dist');
 const files = ['index.html', 'game.js'].concat(
-  ['config', 'rules', 'combat', 'platform', 'audio', 'gameplay', 'renderer', 'input'].map(name => 'src/' + name + '.js')
+  ['config', 'rules', 'combat', 'platform', 'audio', 'cloud', 'gameplay', 'renderer', 'input'].map(name => 'src/' + name + '.js')
 );
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'src'), { recursive: true });

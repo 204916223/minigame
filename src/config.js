@@ -44,6 +44,7 @@
       coinMultiplier: .5, xpMultiplier: .5, interval: 1.5, minInterval: .5,
       pool: { grunt: 1, runner: .5, bat: .3, tank: .1 } },
     enemyHpMultiplier: 2,
+    rewards: { registration: 2000, firstClear: 1000 },
     characterDamageBonus: .15,
     characters: [
       { id: 'physical', el: 'physical', name: '物理卫士', clears: 0 },

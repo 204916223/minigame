@@ -327,7 +327,9 @@
     text(unlocked ? '已解锁 · 无需选择备战技能' : '前三关至少一星通关后解锁 · ' + clears + '/3', C.width / 2, 590, 13, unlocked ? '#7cff6b' : '#b7a5d6', 'center', 'middle');
     G.ui.endlessStart = { x: 55, y: 624, w: 370, h: 48 };
     button(G.ui.endlessStart, unlocked ? '开 始 无 尽 挑 战' : '尚 未 解 锁', unlocked ? '#a378fc' : '#1b2438', unlocked ? '#130a22' : '#717c98');
-    text('记录保存在当前设备 · 进入下一波即通过上一波', C.width / 2, 554, 10, '#8b95b3', 'center', 'middle');
+    var plan = GP.endlessStartPlan();
+    text('本次第 ' + plan.wave + ' 波起 · 跳过 ' + plan.skippedWaves + ' 波', C.width / 2, 548, 14, '#8fe9ff', 'center', 'middle', 'bold');
+    text(plan.skippedWaves ? '补发跳过波次的经验与刷新次数 · 先选卡再开战' : '首次挑战从第 1 波开始', C.width / 2, 568, 11, '#8b95b3', 'center', 'middle');
   }
   function selectionPages(dt) {
     var c = ctx(), G = GP.state, page = G.state === 'levelselect' ? 0 : 1, turn = G.pageTurn;
@@ -356,7 +358,7 @@
   function levelUp() {
     var c = ctx(), G = GP.state;
     c.fillStyle = 'rgba(6,9,17,.94)'; c.fillRect(0, 0, C.width, C.height);
-    text('选择技能或强化', C.width / 2, 65, 24, '#ffd166', 'center', 'middle', 'bold');
+    text(GP.isEndless() && G.time === 0 && G.startingWave > 1 ? '快速备战 · 第 ' + G.startingWave + ' 波起' : '选择技能或强化', C.width / 2, 65, 24, '#ffd166', 'center', 'middle', 'bold');
     text('第 ' + (G.choicesCompleted + 1) + ' 次选择 · 装备 ' + GP.ownedSkills() + (GP.isEndless() ? ' / 不限' : '/6') + ' · 至少一个强化选项', C.width / 2, 96, 12, '#aeb8d2', 'center', 'middle');
     G.ui.cards = G.choices.map(function (choice, i) {
       var card = choice.card, next = choice.level + 1, capped = !card.unlock && R.enhancementMaxed(G, card.skill, card.tag), rect = { x: 26, y: 140 + i * 130, w: 428, h: 108, choice: choice };
@@ -443,6 +445,7 @@
   function cleared() { var c = ctx(), G = GP.state, result = G.result; c.fillStyle = 'rgba(6,9,17,.92)'; c.fillRect(0, 0, C.width, C.height); text('关 卡 通 过', C.width / 2, 150, 34, '#7cff6b', 'center', 'middle', 'bold');
     drawStars(C.width / 2, 235, result.stars, result.flawless, 42); text('剩余生命 ' + Math.round(result.ratio * 100) + '%', C.width / 2, 300, 17, '#e8ecf7', 'center', 'middle');
     text('本局金币 +' + (result.coins || 0) + ' · 总计 ' + (G.progress.coins || 0), C.width / 2, 360, 13, '#ffd166', 'center', 'middle');
+    if (result.firstClearReward) text('首次通关奖励 +' + result.firstClearReward + ' 金币', C.width / 2, 390, 16, '#7cff6b', 'center', 'middle', 'bold');
     if (result.flawless) text('完美通关 · 满血三星边框', C.width / 2, 330, 14, '#fff3a3', 'center', 'middle', 'bold');
     else if (!result.stars) text('需要剩余生命大于 30% 才能解锁下一关', C.width / 2, 330, 13, '#ff8787', 'center', 'middle');
     G.ui.retry = { x: 75, y: 390, w: 150, h: 50 }; button(G.ui.retry, '再战一次', '#26324f', '#cdd6ee');

@@ -7,15 +7,15 @@
   var XP_TABLE = [3, 7, 12, 17, 23];
   function xpNeed(level) {
     if (level <= XP_TABLE.length) return XP_TABLE[level - 1];
-    var need = XP_TABLE[XP_TABLE.length - 1], step = 6;
-    for (var i = XP_TABLE.length; i < level; i++) { need += step; step += 1; }
-    return need;
+    var n = level - XP_TABLE.length;
+    return XP_TABLE[XP_TABLE.length - 1] + 6 * n + n * (n - 1) / 2;
   }
   function calculateStars(ratio) { return ratio > 0.9 ? 3 : (ratio > 0.6 ? 2 : (ratio > 0.3 ? 1 : 0)); }
 
   function makeState() {
     return {
       state: 'menu', mode: 'campaign', paused: false, last: 0, time: 0, selectedLevel: 0, skillPage: 0, pageTurn: null,
+      startingWave: 1, skippedExperience: 0,
       battleSpeed: 1, speedUnlockOpen: false, loadoutOpen: false, characterInfoOpen: false, characterPreview: null,
       player: {}, skills: {}, cardLevels: {}, cardOrder: [],
       enemies: [], bullets: [], parts: [], booms: [], floaters: [], zones: [], arcs: [], telegraphs: [],
@@ -74,6 +74,14 @@
     else { if (ids.length >= C.loadout.candidates) { toast('最多带入 7 个候选技能，请先取消一个'); return false; } ids.push(id); }
     P.saveProgress(G.progress); return true;
   }
+  function endlessStartPlan() {
+    var e = C.endless, wave = Math.max(1, Math.floor(G.progress.endless.bestWave * 2 / 3));
+    var weight = 0, weightedXP = 0;
+    Object.keys(e.pool).forEach(function (key) { weight += e.pool[key]; weightedXP += e.pool[key] * C.enemyTypes[key].xp; });
+    // 普通怪型随机且经验不同，跳波使用怪池权重的期望经验；首领按固定数量计。
+    var perWave = (e.normals * weightedXP / weight + e.miniBosses * C.enemyTypes.miniboss.xp + e.bosses * C.enemyTypes.boss.xp) * C.xpMultiplier * e.xpMultiplier;
+    return { wave: wave, skippedWaves: wave - 1, experience: (wave - 1) * perWave, refreshes: Math.floor((wave - 1) / 3) };
+  }
   function resetRun(levelIndex) {
     if (levelIndex === -1 && !isEndlessUnlocked()) { toast('前三关至少一星通关后解锁无尽模式'); return false; }
     bankCoins();
@@ -102,7 +110,14 @@
     G.bossSpawned = false; G.waveLead = C.waveLeadSeconds; G.pendingLevelUps = 0; G.refreshes = 0;
     G.choices = []; G.choicesCompleted = 0; G.choiceHistory = []; G.currentOfferElements = []; G.fullscreenSince = null;
     G.ui.cards = []; G.result = null; recomputeDerived();
-    toast((isEndless() ? '无尽模式 · ' : '') + '第 1 波', '#8fe9ff'); return true;
+    G.startingWave = 1; G.skippedExperience = 0;
+    if (isEndless()) {
+      var plan = endlessStartPlan();
+      G.startingWave = plan.wave; G.waveIndex = plan.wave - 1; G.skippedExperience = plan.experience;
+      G.refreshes = plan.refreshes;
+      if (plan.experience > 0) grantExperience(plan.experience);
+    }
+    toast((isEndless() ? '无尽模式 · ' : '') + '第 ' + G.startingWave + ' 波' + (G.pendingLevelUps ? ' · 先选择技能与强化' : ''), '#8fe9ff'); return true;
   }
   function isEndlessUnlocked() { return G.progress.stars.slice(0, C.endless.unlockClears).length === C.endless.unlockClears &&
     G.progress.stars.slice(0, C.endless.unlockClears).every(function (n) { return n > 0; }); }
@@ -349,7 +364,13 @@
   function finishLevel() {
     var ratio = G.player.hp / G.player.maxhp, stars = calculateStars(ratio), flawless = ratio >= 0.999999;
     bankCoins();
-    G.result = { stars: stars, flawless: flawless, ratio: ratio, coins: G.lastCoins };
+    var firstClearReward = 0;
+    if (!G.progress.rewards.firstClears[G.selectedLevel]) {
+      firstClearReward = C.rewards.firstClear;
+      G.progress.rewards.firstClears[G.selectedLevel] = true;
+      G.progress.coins += firstClearReward;
+    }
+    G.result = { stars: stars, flawless: flawless, ratio: ratio, coins: G.lastCoins, firstClearReward: firstClearReward };
     if (stars > (G.progress.stars[G.selectedLevel] || 0)) G.progress.stars[G.selectedLevel] = stars;
     if (flawless) G.progress.flawless[G.selectedLevel] = true;
     P.saveProgress(G.progress); G.state = 'cleared'; G.telegraphs = []; G.sweeps = []; A.clear();
@@ -511,7 +532,7 @@
     G.skillPage = next; G.focusedSkill = G.equippedOrder[next * C.loadout.slots]; return true;
   }
   PM.Gameplay = {
-    state: G, combat: combat, selectedCharacter: selectedCharacter, changeCharacter: changeCharacter, previewCharacter: previewCharacter, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openEndlessSelect: openEndlessSelect, returnToSelection: returnToSelection, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
+    state: G, combat: combat, selectedCharacter: selectedCharacter, changeCharacter: changeCharacter, previewCharacter: previewCharacter, endlessStartPlan: endlessStartPlan, toggleCandidate: toggleCandidate, choicePool: function () { return R.pool(G); }, buildChoices: buildChoices, update: update, resetRun: resetRun, openLevelSelect: openLevelSelect, openEndlessSelect: openEndlessSelect, returnToSelection: returnToSelection, openMenu: function () { bankCoins(); G.state = 'menu'; }, applyChoice: applyChoice,
     isLevelUnlocked: isLevelUnlocked, isEndless: isEndless, isEndlessUnlocked: isEndlessUnlocked, loadoutReady: loadoutReady, canSelectLevel: canSelectLevel, canContinue: canContinue, calculateStars: calculateStars,
     grantExperience: grantExperience, isBossActive: hasBoss, ownedCards: ownedCards, xpNeed: xpNeed,
     ownedSkills: ownedSkills, selectSkill: selectSkill, changeSkillPage: changeSkillPage, changeSelectionPage: changeSelectionPage,
